@@ -1,0 +1,77 @@
+{% extends "base.html" %}  <!-- Předpokládám, že máte základní šablonu -->
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/plugins.css') }}">
+
+<div class="plugins-manager-container">
+    <div class="plugins-header">
+        <button id="back-to-server-btn" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Zpět na server
+        </button>
+        <h2><i class="fas fa-puzzle-piece"></i> Správa pluginů: <span id="server-name-plugins">{{ server.name }}</span></h2>
+    </div>
+
+    <div class="plugins-tabs">
+        <button class="tab-btn active" data-tab="installed">Nainstalované pluginy</button>
+        <button class="tab-btn" data-tab="available">Dostupné pluginy</button>
+        <button class="tab-btn" data-tab="updates">Dostupné aktualizace</button>
+    </div>
+
+    <div class="plugins-search-box">
+        <input type="text" id="plugins-search-input" placeholder="Hledat pluginy...">
+        <select id="plugins-filter-category">
+            <option value="all">Všechny kategorie</option>
+            <option value="core">Základní pluginy</option>
+            <option value="optional">Volitelné pluginy</option>
+            <option value="performance">Optimalizace</option>
+            <option value="admin">Administrace</option>
+        </select>
+    </div>
+
+    <div id="installed-plugins" class="tab-content active">
+        <div class="plugins-list-header">
+            <span>Název</span>
+            <span>Verze</span>
+            <span>Stav</span>
+            <span>Akce</span>
+        </div>
+        <div id="installed-plugins-list" class="plugins-list">
+            <!-- Načte se dynamicky -->
+        </div>
+    </div>
+
+    <div id="available-plugins" class="tab-content">
+        <div class="plugins-list-header">
+            <span>Název</span>
+            <span>Verze</span>
+            <span>Popis</span>
+            <span>Akce</span>
+        </div>
+        <div id="available-plugins-list" class="plugins-list">
+            <!-- Načte se dynamicky -->
+        </div>
+    </div>
+
+    <div id="updates-plugins" class="tab-content">
+        <div class="plugins-list-header">
+            <span>Název</span>
+            <span>Aktuální verze</span>
+            <span>Nová verze</span>
+            <span>Akce</span>
+        </div>
+        <div id="updates-plugins-list" class="plugins-list">
+            <!-- Načte se dynamicky -->
+        </div>
+    </div>
+
+    <div class="plugins-status-bar">
+        <span id="plugins-status-message">Připraveno</span>
+        <div class="plugins-stats">
+            <span><i class="fas fa-cube"></i> <span id="plugins-count">0</span> pluginů</span>
+            <span><i class="fas fa-download"></i> <span id="updates-count">0</span> aktualizací</span>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/plugins_manager.js') }}"></script>
+{% endblock %}

@@ -64,7 +64,16 @@ def server_panel(server_id):
 
     return render_template("includes/_server_panel.html", server=server)
 
-
+@app.route('/server/<int:server_id>/plugins')
+@login_required
+def server_plugins(server_id):
+    server = Server.query.get_or_404(server_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    return render_template("plugins_manager.html", server=server)
 
 if __name__ == '__main__':
     if not os.path.exists('db.sqlite3'):

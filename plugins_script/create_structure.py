@@ -2,7 +2,8 @@ import os
 from datetime import datetime
 
 # Základní cesta k úložišti
-BASE_PATH = r"D:\\minecraft_plugins"
+#BASE_PATH = r"D:\\minecraft_plugins"
+BASE_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
 
 # Struktura adresářů
 DIRECTORY_STRUCTURE = [

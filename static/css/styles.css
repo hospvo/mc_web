@@ -931,3 +931,248 @@ form {
   #admin-list button:hover {
     background-color: #c82333;
   }
+
+
+
+  /* Základní styly pro správu pluginů */
+.plugins-manager-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #2d3748;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.plugins-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #4a5568;
+}
+
+.plugins-header h2 {
+    margin: 0;
+    color: #fff;
+    font-size: 1.5rem;
+}
+
+.plugins-tabs {
+    display: flex;
+    border-bottom: 1px solid #4a5568;
+    margin-bottom: 15px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    color: #a0aec0;
+    font-weight: 600;
+    position: relative;
+    margin-right: 5px;
+}
+
+.tab-btn.active {
+    color: #4299e1;
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #4299e1;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.plugins-search-box {
+    display: flex;
+    margin-bottom: 20px;
+    gap: 10px;
+}
+
+.plugins-search-box input {
+    flex-grow: 1;
+    padding: 8px 12px;
+    background: #3c4658;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    color: #fff;
+}
+
+.plugins-search-box select {
+    padding: 8px 12px;
+    background: #3c4658;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    color: #fff;
+}
+
+.plugins-list-header {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    padding: 10px;
+    background: #3c4658;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #a0aec0;
+}
+
+.plugins-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plugin-item {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    padding: 12px;
+    background: #3c4658;
+    border-radius: 4px;
+    align-items: center;
+}
+
+.plugin-item:hover {
+    background: #4a5568;
+}
+
+.plugin-name {
+    font-weight: 600;
+    color: #fff;
+}
+
+.plugin-version {
+    color: #a0aec0;
+    font-size: 0.9em;
+}
+
+.plugin-description {
+    color: #cbd5e0;
+    font-size: 0.9em;
+}
+
+.plugin-actions {
+    display: flex;
+    gap: 5px;
+    justify-content: flex-end;
+}
+
+.plugin-btn {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+}
+
+.plugin-btn.install {
+    background: #48bb78;
+    color: white;
+}
+
+.plugin-btn.uninstall {
+    background: #f56565;
+    color: white;
+}
+
+.plugin-btn.update {
+    background: #ed8936;
+    color: white;
+}
+
+.plugins-status-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #4a5568;
+    color: #a0aec0;
+    font-size: 0.9em;
+}
+
+.plugins-stats {
+    display: flex;
+    gap: 15px;
+}
+
+.plugins-stats span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Rychlý náhled v server panelu */
+.plugins-quickview {
+    margin-top: 20px;
+    background: #2d3748;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.plugins-quickview h3 {
+    margin-top: 0;
+    color: #fff;
+}
+
+#installed-plugins-quickview {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.quickview-plugin-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    background: #3c4658;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.quickview-plugin-name {
+    color: #fff;
+}
+
+.quickview-plugin-version {
+    color: #a0aec0;
+    font-size: 0.8em;
+}
+
+
+/* Back button styles */
+#manage-plugins-btn, #back-to-server-btn {
+  background-color: #c4b531;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+  margin-right: 15px;
+}
+
+#manage-plugins-btn:hover ,#back-to-server-btn:hover {
+  background-color: #928515;
+}
+
+#manage-plugins-btn i,#back-to-server-btn i {
+  font-size: 14px;
+}

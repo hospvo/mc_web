@@ -87,6 +87,16 @@
             <!-- Seznam adminů se načte zde -->
         </ul>
     </div>
+
+  <div class="plugins-quickview">
+    <h3><i class="fas fa-puzzle-piece"></i> Nainstalované pluginy</h3>
+    <div id="installed-plugins-quickview" class="plugins-list">
+        <!-- Načte se dynamicky -->
+    </div>
+    <button id="manage-plugins-btn" class="btn btn-primary">
+        <i class="fas fa-cog"></i> Spravovat pluginy
+    </button>
+  </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/server_panel.js') }}"></script>

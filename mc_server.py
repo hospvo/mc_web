@@ -6,16 +6,35 @@ import signal
 from datetime import datetime
 import time
 import threading
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, abort
 from flask_login import login_required, current_user
-from models import db, Server, User
+from models import db, User, Plugin, Server, PluginConfig, PluginUpdateLog, server_plugins
 
 # Base directory where all server folders will be stored
-#BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
-BASE_SERVERS_PATH = r"D:\\"
+BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
+BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
+#BASE_SERVERS_PATH = r"D:\\"
 #seznam aktuálně využitých jader
 USED_CPU = []
 total_cores = psutil.cpu_count(logical=True)  # fyzická jádra, nebo True pro logická
+
+
+
+def get_server_paths(server_id):
+    """Get server-specific paths based on server ID"""
+    server = Server.query.get(server_id)
+    if not server:
+        return None
+    
+    server_name = server.name.replace(' ', '_').lower()
+    server_dir = os.path.join(BASE_SERVERS_PATH, server_name)
+    
+    return {
+        'server_path': os.path.join(server_dir, "minecraft-server"),
+        'backup_path': os.path.join(server_dir, "mcbackups"),
+        'server_jar': f"server_{server_id}.jar"  # Unikátní název podle server_id
+    }
+
 
 class ServerInstance:
     """Třída pro správu stavu jednoho serveru"""
@@ -75,23 +94,241 @@ class ServerManager:
             if server_id in self.instances:
                 del self.instances[server_id]
 
+
+
+class PluginManager:
+    def __init__(self, external_storage_path=BASE_PLUGIN_PATH):
+        self.external_storage = external_storage_path
+        self._ensure_directories()
+    
+    def _ensure_directories(self):
+        """Zajistí existenci potřebných adresářů v externím úložišti"""
+        dirs = [
+            'plugins/core',
+            'plugins/optional',
+            'plugins/deprecated',
+            'configs',
+            'backups',
+            'temp'
+        ]
+        
+        for dir_path in dirs:
+            full_path = os.path.join(self.external_storage, dir_path)
+            os.makedirs(full_path, exist_ok=True)
+    
+    def install_plugin_to_server(self, plugin_id, server_id, user_id):
+        """Nainstaluje plugin na konkrétní server"""
+        plugin = Plugin.query.get(plugin_id)
+        server = Server.query.get(server_id)
+
+        if not plugin or not server:
+            return False, "Plugin or server not found"
+
+        # Kontrola, zda již není nainstalován
+        if server.plugins.filter_by(id=plugin_id).first():
+            return False, "Plugin already installed on this server"
+        
+        try:
+            # 1. Získat cesty pro server pomocí get_server_paths
+            server_paths = get_server_paths(server_id)
+            if not server_paths:
+                return False, "Could not determine server paths"
+
+            # 1. Zkopírovat plugin do složky serveru
+            server_plugins_dir = os.path.join(server_paths['server_path'], "plugins")
+            print(f"[DEBUG] Cílová složka pluginu: {server_plugins_dir}")
+
+            os.makedirs(server_plugins_dir, exist_ok=True)
+
+            plugin_filename = os.path.basename(plugin.file_path)
+            dest_path = os.path.join(server_plugins_dir, plugin_filename)
+
+            print(f"[DEBUG] Kopírování souboru:")
+            print(f"  Ze: {plugin.file_path}")
+            print(f"  Do: {dest_path}")
+            print(f"  Soubor existuje? {os.path.exists(plugin.file_path)}")
+
+            if not os.path.exists(plugin.file_path):
+                return False, f"Plugin file not found at {plugin.file_path}"
+
+            shutil.copy2(plugin.file_path, dest_path)
+            print("[DEBUG] Soubor úspěšně zkopírován.")
+
+            # 2. Přidat vztah mezi serverem a pluginem
+            db.session.execute(
+                server_plugins.insert().values(
+                    server_id=server_id,
+                    plugin_id=plugin_id,
+                    installed_at=datetime.utcnow(),
+                    is_active=True
+                )
+            )
+
+            # 3. Zkopírovat výchozí konfiguraci (pokud existuje)
+            config_folder_name = os.path.splitext(plugin.name)[0]
+            default_config_dir = os.path.join(self.external_storage, "configs", config_folder_name)
+            print(f"[DEBUG] Výchozí konfigurace: {default_config_dir} (existuje: {os.path.exists(default_config_dir)})")
+            print(f"  self.external_storage: {self.external_storage}")
+
+            if os.path.exists(default_config_dir):
+                server_config_dir = os.path.join(server_plugins_dir, plugin.name)
+                shutil.copytree(default_config_dir, server_config_dir, dirs_exist_ok=True)
+                print("[DEBUG] Výchozí konfigurace úspěšně zkopírována.")
+
+                server_config = PluginConfig(
+                    plugin_id=plugin_id,
+                    server_id=server_id,
+                    config_path=server_config_dir,
+                    last_updated=datetime.utcnow()
+                )
+                db.session.add(server_config)
+
+            # 4. Zaznamenat do logu
+            log_entry = PluginUpdateLog(
+                plugin_id=plugin_id,
+                user_id=user_id,
+                action="install",
+                version_to=plugin.version,
+                notes=f"Installed to server {server.name}"
+            )
+            db.session.add(log_entry)
+
+            db.session.commit()
+            return True, "Plugin installed successfully"
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"[CHYBA] Výjimka při instalaci pluginu: {e}")
+            return False, str(e)
+
+    
+    def update_plugin(self, plugin_id, new_file_path, user_id):
+        """Aktualizuje plugin ve všech serverech"""
+        plugin = Plugin.query.get(plugin_id)
+        if not plugin:
+            return False, "Plugin not found"
+        
+        try:
+            # 1. Vytvořit zálohu
+            backup_dir = os.path.join(self.external_storage, "backups")
+            os.makedirs(backup_dir, exist_ok=True)
+            backup_path = os.path.join(backup_dir, f"{plugin.name}_{datetime.now().strftime('%Y%m%d')}.jar")
+            shutil.copy2(plugin.file_path, backup_path)
+            
+            old_version = plugin.version
+            
+            # 2. Aktualizovat soubor pluginu
+            shutil.copy2(new_file_path, plugin.file_path)
+            
+            # 3. Aktualizovat metadata pluginu
+            # (zde byste mohli parsovat novou verzi z názvu souboru)
+            plugin.updated_at = datetime.utcnow()
+            
+            # 4. Aktualizovat plugin na všech serverech
+            for server in plugin.servers:
+                server_plugins_dir = os.path.join(BASE_PLUGIN_PATH, server.name, "plugins")
+                plugin_filename = os.path.basename(plugin.file_path)
+                dest_path = os.path.join(server_plugins_dir, plugin_filename)
+                
+                shutil.copy2(new_file_path, dest_path)
+                
+                # Zaznamenat aktualizaci
+                log_entry = PluginUpdateLog(
+                    plugin_id=plugin_id,
+                    user_id=user_id,
+                    action="update",
+                    version_from=old_version,
+                    version_to=plugin.version,
+                    notes=f"Updated on server {server.name}"
+                )
+                db.session.add(log_entry)
+            
+            db.session.commit()
+            return True, "Plugin updated on all servers"
+            
+        except Exception as e:
+            db.session.rollback()
+            return False, str(e)
+        
+    def uninstall_plugin(self, plugin_id, server_id, user_id):
+        """Odinstaluje plugin ze serveru"""
+        plugin = Plugin.query.get(plugin_id)
+        server = Server.query.get(server_id)
+
+        if not plugin or not server:
+            return False, "Plugin or server not found"
+
+        # Kontrola, zda je plugin nainstalován
+        if not server.plugins.filter_by(id=plugin_id).first():
+            return False, "Plugin is not installed on this server"
+
+        try:
+            # 1. Získat cesty pro server
+            server_paths = get_server_paths(server_id)
+            if not server_paths:
+                return False, "Could not determine server paths"
+
+            # 2. Smazat plugin ze složky serveru
+            server_plugins_dir = os.path.join(server_paths['server_path'], "plugins")
+            plugin_filename = os.path.basename(plugin.file_path)
+            plugin_path = os.path.join(server_plugins_dir, plugin_filename)
+
+            print(f"[DEBUG] Odstraňování pluginu: {plugin_path}")
+            
+            if os.path.exists(plugin_path):
+                os.remove(plugin_path)
+                print("[DEBUG] Soubor pluginu úspěšně odstraněn")
+            else:
+                print("[DEBUG] Soubor pluginu nebyl nalezen, pokračování v odinstalaci")
+
+            # 3. Smazat konfiguraci pluginu (pokud existuje)
+            config_folder_name = os.path.splitext(plugin.name)[0]
+            server_config_dir = os.path.join(server_plugins_dir, plugin.name)
+            
+            if os.path.exists(server_config_dir):
+                shutil.rmtree(server_config_dir)
+                print("[DEBUG] Konfigurace pluginu úspěšně odstraněna")
+
+            # 4. Odstranit vztah mezi serverem a pluginem
+            db.session.execute(
+                server_plugins.delete().where(
+                    (server_plugins.c.server_id == server_id) &
+                    (server_plugins.c.plugin_id == plugin_id)
+                )
+            )
+
+            # 5. Smazat záznam o konfiguraci (pokud existuje)
+            config = PluginConfig.query.filter_by(
+                plugin_id=plugin_id,
+                server_id=server_id
+            ).first()
+            
+            if config:
+                db.session.delete(config)
+
+            # 6. Zaznamenat do logu
+            log_entry = PluginUpdateLog(
+                plugin_id=plugin_id,
+                user_id=user_id,
+                action="uninstall",
+                version_from=plugin.version,
+                notes=f"Uninstalled from server {server.name}"
+            )
+            db.session.add(log_entry)
+
+            db.session.commit()
+            return True, "Plugin uninstalled successfully"
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"[CHYBA] Výjimka při odinstalaci pluginu: {e}")
+            return False, str(e)
+
 # Globální manager pro všechny servery
 server_manager = ServerManager()
+plugin_manager = PluginManager()
 
-def get_server_paths(server_id):
-    """Get server-specific paths based on server ID"""
-    server = Server.query.get(server_id)
-    if not server:
-        return None
-    
-    server_name = server.name.replace(' ', '_').lower()
-    server_dir = os.path.join(BASE_SERVERS_PATH, server_name)
-    
-    return {
-        'server_path': os.path.join(server_dir, "minecraft-server"),
-        'backup_path': os.path.join(server_dir, "mcbackups"),
-        'server_jar': f"server_{server_id}.jar"  # Unikátní název podle server_id
-    }
+
 
 def get_server_status(server_id):
     """Get status of a specific server"""
@@ -718,3 +955,175 @@ def remove_server_admin():
     db.session.commit()
 
     return jsonify({'success': True})
+
+
+### plugin manager ###
+@server_api.route('/api/plugins/installed')
+@login_required
+def get_installed_plugins():
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+    
+    server = Server.query.get_or_404(server_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    plugins = []
+    for plugin in server.plugins:
+        plugin_data = {
+            'id': plugin.id,
+            'name': plugin.name,
+            'display_name': plugin.display_name or plugin.name,
+            'version': plugin.version,
+            'author': plugin.author,
+            'is_active': True,  # Můžete doplnit z M:N tabulky
+            'installed_at': None,  # Můžete doplnit z M:N tabulky
+            'description': plugin.description
+        }
+        plugins.append(plugin_data)
+    
+    return jsonify(plugins)
+
+@server_api.route('/api/plugins/available')
+@login_required
+def get_available_plugins():
+    # Filtrování podle parametrů
+    search = request.args.get('search', '').lower()
+    category = request.args.get('category', 'all')
+    
+    query = Plugin.query
+    
+    if search:
+        query = query.filter(db.or_(
+            Plugin.name.ilike(f'%{search}%'),
+            Plugin.display_name.ilike(f'%{search}%'),
+            Plugin.description.ilike(f'%{search}%')
+        ))
+    
+    if category != 'all':
+        query = query.filter_by(category=category)
+    
+    plugins = query.all()
+    
+    return jsonify([{
+        'id': p.id,
+        'name': p.name,
+        'display_name': p.display_name or p.name,
+        'version': p.version,
+        'author': p.author,
+        'description': p.description,
+        'category': p.category,
+        'compatible_with': p.compatible_with
+    } for p in plugins])
+
+@server_api.route('/api/plugins/install', methods=['POST'])
+@login_required
+def install_plugin():
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+    
+    plugin_id = request.json.get('plugin_id')
+    if not plugin_id:
+        return jsonify({'error': 'Missing plugin_id'}), 400
+    
+    server = Server.query.get_or_404(server_id)
+    plugin = Plugin.query.get_or_404(plugin_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    # Kontrola, zda již není nainstalován
+    if plugin in server.plugins:
+        return jsonify({'error': 'Plugin already installed'}), 400
+    
+    try:
+        # Zde byste volali váš PluginManager
+        success, message = plugin_manager.install_plugin_to_server(
+            plugin_id=plugin.id,
+            server_id=server.id,
+            user_id=current_user.id
+        )
+        
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'error': message}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@server_api.route('/api/plugins/uninstall', methods=['POST'])
+@login_required
+def uninstall_plugin():
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+    
+    plugin_id = request.json.get('plugin_id')
+    if not plugin_id:
+        return jsonify({'error': 'Missing plugin_id'}), 400
+    
+    server = Server.query.get_or_404(server_id)
+    plugin = Plugin.query.get_or_404(plugin_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    # Kontrola, zda je nainstalován
+    if plugin not in server.plugins:
+        return jsonify({'error': 'Plugin not installed on this server'}), 400
+    
+    try:
+        # Zde byste volali váš PluginManager pro odinstalaci
+        success, message = plugin_manager.uninstall_plugin(
+            plugin_id=plugin.id,
+            server_id=server.id,
+            user_id=current_user.id
+        )
+        
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'error': message}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@server_api.route('/api/plugins/check-updates')
+@login_required
+def check_plugin_updates():
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+    
+    server = Server.query.get_or_404(server_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    # Zde byste implementovali kontrolu aktualizací
+    # Toto je zjednodušený příklad
+    updates = []
+    for plugin in server.plugins:
+        # Předpokládáme, že máte nějakou metodu pro kontrolu aktualizací
+        update_info = plugin_manager.check_for_updates(plugin.id)
+        if update_info['update_available']:
+            updates.append({
+                'plugin_id': plugin.id,
+                'name': plugin.name,
+                'current_version': plugin.version,
+                'new_version': update_info['new_version'],
+                'changelog': update_info['changelog']
+            })
+    
+    return jsonify(updates)
+
+
+

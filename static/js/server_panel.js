@@ -423,3 +423,52 @@ async function removeAdmin(user_id) {
 }
 
 document.addEventListener('DOMContentLoaded', loadAdminPanel);
+
+
+async function loadQuickViewPlugins() {
+    const serverId = getCurrentServerId();
+    try {
+        const response = await fetch(`/api/plugins/installed?server_id=${serverId}`);
+        const plugins = await response.json();
+        
+        const list = document.getElementById('installed-plugins-quickview');
+        list.innerHTML = '';
+        
+        if (plugins.length === 0) {
+            list.innerHTML = '<div class="quickview-plugin-item">Žádné pluginy</div>';
+            return;
+        }
+        
+        // Zobrazíme pouze prvních 5 pluginů
+        plugins.slice(0, 5).forEach(plugin => {
+            const pluginItem = document.createElement('div');
+            pluginItem.className = 'quickview-plugin-item';
+            pluginItem.innerHTML = `
+                <span class="quickview-plugin-name">${plugin.display_name || plugin.name}</span>
+                <span class="quickview-plugin-version">v${plugin.version}</span>
+            `;
+            list.appendChild(pluginItem);
+        });
+        
+        // Pokud je pluginů více než 5, zobrazíme počítadlo
+        if (plugins.length > 5) {
+            const moreItem = document.createElement('div');
+            moreItem.className = 'quickview-plugin-item';
+            moreItem.innerHTML = `
+                <span>+ ${plugins.length - 5} dalších</span>
+            `;
+            list.appendChild(moreItem);
+        }
+    } catch (error) {
+        console.error('Chyba při načítání pluginů:', error);
+    }
+}
+
+// Přesměrování na správu pluginů
+document.getElementById('manage-plugins-btn').addEventListener('click', () => {
+    const serverId = getCurrentServerId();
+    window.location.href = `/server/${serverId}/plugins`;
+});
+
+// Načtěte pluginy při startu
+document.addEventListener('DOMContentLoaded', loadQuickViewPlugins);
