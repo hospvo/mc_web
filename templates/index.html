@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Hlavní stránka{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <h2>Váš vlastní Minecraft server za dostupnou cenu</h2>
+    <p>Stabilní výkon, rychlá aktivace, bonusová RAM za věrnost!</p>
+    <a href="#cenik" class="button">Vybrat server</a>
+  </section>
+
+  <section class="hero performance-section">
+    <div class="hero-content">
+      <h2>Profesionální hosting pro náročné survival hráče</h2>
+      
+      <div class="hardware-highlight">
+        <div class="hardware-card">
+          <i class="fas fa-microchip"></i>
+          <h3>Intel Xeon E5-2470v2</h3>
+          <p>10 jader / 20 vláken @ 2.4GHz</p>
+          <p>Turbo Boost až 3.2GHz</p>
+        </div>
+        
+        <div class="hardware-card">
+          <i class="fas fa-memory"></i>
+          <h3>Generózní RAM limity</h3>
+          <p>Až 20GB alokované paměti</p>
+          <p>DDR3 ECC s opravou chyb</p>
+        </div>
+      </div>
+  
+      <div class="value-proposition">
+        <h3>Proč jsme jiní než běžné hostingy?</h3>
+        <ul class="benefits-list">
+          <li><i class="fas fa-check-circle"></i> <strong>2-3× vyšší RAM limity</strong> než konkurence ve stejné cenové třídě</li>
+          <li><i class="fas fa-check-circle"></i> Serverový procesor s <strong>vynikajícím poměrem cena/výkon</strong></li>
+          <li><i class="fas fa-check-circle"></i> Optimalizováno pro <strong>survival s modpacks</strong> a rozsáhlými stavbami</li>
+          <li><i class="fas fa-check-circle"></i> Žádné skryté limity - <strong>plný výkon 24/7</strong></li>
+        </ul>
+        
+        <div class="price-comparison">
+          <p>"U konkurence za 150 Kč dostanete 4GB RAM, u nás 8-10GB ve stejné cenové kategorii"</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="philosophy-section">
+    <h2>Naše filozofie</h2>
+    <p>Jsme parta studentů, která miluje Minecraft a chce vytvořit cenové dostupné řešení pro komunity přátel. 
+      Přesto že chceme aby naše služba byla co nejlepší a vážíme si toho že ji používáte, nemůžeme vždy a zcela ručit za okamžitou podporu</p>
+    
+    <div class="philosophy-features">
+      <div class="feature-list offer-list">
+        <h3>Co nabízíme:</h3>
+        <ul>
+          <li>Váš svět = vaše data – plný přístup k mapám kdykoliv</li>
+          <li>Discord a příjemné komunitní prostředí</li>
+          <li>Intuitivní ovládání přes váš dashboard</li>
+        </ul>
+      </div>
+      
+      <div class="feature-list limit-list">
+        <h3>Co nečekejte:</h3>
+        <ul>
+          <li>Nepřetržitou technickou podporu</li>
+          <li>Okamžité řešení problémů (obvykle do 24h)</li>
+          <li>Okamžitou instalaci modpacků které nejsou v nabídce</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="divider"></div>
+      
+      <div class="data-control">
+        <h4><i class="fas fa-database"></i> Plná kontrola nad daty</h4>
+        <div class="backup-features">
+          <div class="backup-card">
+            <i class="fas fa-cloud-download-alt"></i>
+            <h5>Stažení světa</h5>
+            <p>Exportujte si celý svět jedním kliknutím</p>
+          </div>
+          <div class="backup-card">
+            <i class="fas fa-history"></i>
+            <h5>Denní zálohy</h5>
+            <p>Automatické zálohování každých 24 hodin</p>
+          </div>
+          <div class="backup-card">
+            <i class="fas fa-calendar-week"></i>
+            <h5>7denní historie</h5>
+            <p>Možnost obnovy z kteréhokoliv dne v týdnu</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="cenik" class="pricing">
+    <div class="card">
+      <h3>Starter</h3>
+      <p>6 GB RAM</p>
+      <p><strong>120 Kč / měsíc</strong></p>
+      <p>Bez bonusu</p>
+      <div class="specs">
+        <p><i class="fas fa-memory"></i> 6 GB RAM</p>
+        <p><i class="fas fa-microchip"></i> 2 jádra CPU</p>
+        <p><i class="fas fa-hdd"></i> 20 GB SSD</p>
+      </div>
+      <a href="#objednat" class="button">Objednat</a>
+    </div>
+    <div class="card">
+      <h3>Advanced</h3>
+      <p>8 GB RAM (+2 GB po 3 měsících)</p>
+      <p><strong>150 Kč / měsíc</strong></p>
+      <p>Bonus: +2 GB</p>
+      <div class="specs">
+        <p><i class="fas fa-memory"></i> 8-10 GB RAM</p>
+        <p><i class="fas fa-microchip"></i> 4 jádra CPU</p>
+        <p><i class="fas fa-hdd"></i> 30 GB SSD</p>
+      </div>
+      <a href="#objednat" class="button">Objednat</a>
+    </div>
+    <div class="card">
+      <h3>Pro</h3>
+      <p>16 GB RAM (+4 GB po 3 měsících)</p>
+      <p><strong>220 Kč / měsíc</strong></p>
+      <p>Bonus: +4 GB</p>
+      <div class="specs">
+        <p><i class="fas fa-memory"></i> 16-20 GB RAM</p>
+        <p><i class="fas fa-microchip"></i> 6 jáder CPU</p>
+        <p><i class="fas fa-hdd"></i> 50 GB SSD</p>
+      </div>
+      <a href="#objednat" class="button">Objednat</a>
+    </div>
+  </section>
+
+  <section id="objednat" class="form-section">
+    <h2 style="text-align:center">Objednávkový formulář</h2>
+    <form action="#" method="post">
+      <input type="text" name="name" placeholder="Jméno / Přezdívka" required>
+      <input type="email" name="email" placeholder="Email" required>
+      <select name="plan" required>
+        <option value="">Vyberte balíček</option>
+        <option value="Starter">Starter - 6 GB</option>
+        <option value="Advanced">Advanced - 8 GB (+2 GB)</option>
+        <option value="Pro">Pro - 16 GB (+4 GB)</option>
+      </select>
+      <textarea name="note" rows="4" placeholder="Poznámky (např. verze Minecraftu)"></textarea>
+      <button type="submit" class="button">Odeslat objednávku</button>
+    </form>
+  </section>
+{% endblock %}

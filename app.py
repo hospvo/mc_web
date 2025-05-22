@@ -1,0 +1,74 @@
+from flask import Flask, render_template, redirect, url_for, request, session, jsonify, abort
+from flask_login import LoginManager, login_required, current_user
+from flask_migrate import Migrate
+from models import db, User, Server  # Ujisti se, že zde správně importuješ db a User
+from auth import auth_blueprint
+import os
+from mc_server import server_api
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'tajnyklic'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+
+
+# databáze a přihlášení
+login_manager = LoginManager()
+login_manager.login_view = 'auth.login'
+login_manager.init_app(app)
+db.init_app(app)  # Inicializace db
+
+# Inicializace migrací
+migrate = Migrate(app, db)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Blueprinty
+app.register_blueprint(auth_blueprint)
+app.register_blueprint(server_api)
+
+@app.route('/')
+def index():
+    return render_template("index.html")
+    #if not current_user.is_authenticated:
+        #return redirect(url_for('auth.login'))
+    #return redirect(url_for('dashboard'))
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    user = current_user
+
+    # Servery, které vlastní
+    owned = user.owned_servers
+
+    # Servery, kde je admin, ale není vlastník
+    admin_only = user.admin_of_servers.filter(Server.owner_id != user.id).all()
+
+    # Sloučíme obě sady
+    all_servers = list(owned) + admin_only
+
+    return render_template("dashboard.html", username=user.username, servers=all_servers)
+
+@app.route('/server/<int:server_id>')
+@login_required
+def server_panel(server_id):
+    server = Server.query.get_or_404(server_id)
+
+    # Ověření, že má k serveru přístup
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+
+    return render_template("includes/_server_panel.html", server=server)
+
+
+
+if __name__ == '__main__':
+    if not os.path.exists('db.sqlite3'):
+        with app.app_context():
+            db.create_all()
+    app.run(debug=True)
+

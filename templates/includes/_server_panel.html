@@ -1,0 +1,92 @@
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+<div class="server-panel">
+  <h3><i class="fas fa-server"></i> Správa serveru</h3>
+
+    <div class="server-header">
+    <button id="back-btn" class="btn btn-secondary">
+      <i class="fas fa-arrow-left"></i> Zpět na Dashboard
+    </button>
+    <h3><i class="fas fa-server"></i> Správa serveru: <span id="server-name">{{ server.name }}</span></h3>
+  </div>
+  
+  <div id="server-status-display">
+      <p><span class="status-indicator"></span> Status: <span class="status-text">Načítání...</span></p>
+      <p>RAM: <span id="ram-usage">-</span> MB</p>
+      <p>CPU: <span id="cpu-usage">-</span> / <span id="cpu-max">-</span></p>
+      <p>Online: <span id="player-count">-</span></p>
+  </div>
+
+  <div class="server-actions mt-3">
+      <button id="start-btn" class="btn btn-success"><i class="fas fa-play"></i> Start</button>
+      <button id="restart-btn" class="btn btn-warning"><i class="fas fa-redo"></i> Restart</button>
+      <button id="stop-btn" class="btn btn-danger"><i class="fas fa-stop"></i> Stop</button>
+  </div>
+
+  <div class="console-container">
+  <h3>Konzole serveru</h3>
+  <div id="log-output" class="console-output"></div>
+    <input type="text" id="console-input" class="console-input" placeholder="Zadej příkaz..." />
+    <button id="sendCommand" class="console-button">Odeslat</button>
+
+    <div class="backup-panel">
+        <h3><i class="fas fa-file-archive"></i> Správa záloh</h3>
+        
+        <div class="backup-actions mb-3">
+          <button id="create-backup-btn" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Vytvořit zálohu
+          </button>
+          <input type="text" id="backup-name" placeholder="Název zálohy (volitelné)" class="form-control">
+        </div>
+        
+        <div class="backup-list-container">
+          <h4>Dostupné zálohy</h4>
+          <div id="backup-list" class="backup-list">
+            <!-- Zálohy se načtou dynamicky -->
+          </div>
+        </div>
+      </div>
+      <div class="disk-usage-panel">
+        <h3><i class="fas fa-hdd"></i> Využití disku</h3>
+        
+        <div class="combined-progress mb-3">
+            <div id="server-usage-bar" class="progress-bar server-bar" 
+                 style="width: 0%" 
+                 title="Server"></div>
+            <div id="backup-usage-bar" class="progress-bar backup-bar" 
+                 style="width: 0%" 
+                 title="Zálohy"></div>
+        </div>
+        
+        <div class="disk-usage-details">
+            <div class="usage-item">
+                <span class="usage-label"><i class="fas fa-server"></i> Server:</span>
+                <span id="server-usage-text" class="usage-value">-</span>
+            </div>
+            <div class="usage-item">
+                <span class="usage-label"><i class="fas fa-file-archive"></i> Zálohy:</span>
+                <span id="backup-usage-text" class="usage-value">-</span>
+            </div>
+            <div class="usage-item">
+                <span class="usage-label"><i class="fas fa-hdd"></i> Využito:</span>
+                <span id="total-usage-text" class="usage-value">-</span>
+            </div>
+            <div class="usage-item">
+                <span class="usage-label"><i class="fas fa-database"></i> Počet záloh:</span>
+                <span id="backup-count" class="usage-value">-</span>
+            </div>
+        </div>        
+    </div>
+    <div id="admin-management-panel" style="display: none;">
+        <h3><i class="fas fa-user-shield"></i> Správa administrátorů</h3>
+        <input type="email" id="admin-email-input" class="form-control mb-2" placeholder="Email admina">
+        <button id="add-admin-btn" class="btn btn-primary mb-3">Přidat admina</button>
+
+        <h4>Seznam administrátorů</h4>
+        <ul id="admin-list" class="list-group mb-3">
+            <!-- Seznam adminů se načte zde -->
+        </ul>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/server_panel.js') }}"></script>

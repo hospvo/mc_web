@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Registrace{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+  <div class="auth-container">
+    <div class="auth-card">
+      <h2><i class="fas fa-user-plus"></i> Registrace</h2>
+      <form method="POST">
+        <div class="form-group">
+          <label for="username"><i class="fas fa-user"></i> Uživatelské jméno</label>
+          <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+          <label for="email"><i class="fas fa-envelope"></i> Email</label>
+          <input type="email" id="email" name="email" required>
+        </div>
+        <div class="form-group">
+          <label for="password"><i class="fas fa-lock"></i> Heslo</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="button full-width">
+          <i class="fas fa-user-plus"></i> Zaregistrovat se
+        </button>
+      </form>
+      <div class="auth-links">
+        <a href="{{ url_for('auth.login') }}">Již máte účet? Přihlaste se</a>
+        <a href="{{ url_for('index') }}">Zpět na hlavní stránku</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}
