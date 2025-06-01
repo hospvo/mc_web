@@ -1,7 +1,7 @@
-{% extends "base.html" %}  <!-- Předpokládám, že máte základní šablonu -->
+{% extends "base.html" %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/plugins.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 
 <div class="plugins-manager-container">
     <div class="plugins-header">
@@ -15,9 +15,10 @@
         <button class="tab-btn active" data-tab="installed">Nainstalované pluginy</button>
         <button class="tab-btn" data-tab="available">Dostupné pluginy</button>
         <button class="tab-btn" data-tab="updates">Dostupné aktualizace</button>
+        <button class="tab-btn" data-tab="manual">Manuální instalace</button>
     </div>
 
-    <div class="plugins-search-box">
+    <div class="plugins-search-box" id="search-box">
         <input type="text" id="plugins-search-input" placeholder="Hledat pluginy...">
         <select id="plugins-filter-category">
             <option value="all">Všechny kategorie</option>
@@ -63,6 +64,38 @@
             <!-- Načte se dynamicky -->
         </div>
     </div>
+
+<div id="manual-plugins" class="tab-content">
+    <div class="plugin-manual-download">
+        <h3 class="plugin-source-heading">
+            <img src="{{ url_for('static', filename='img/modrinth_logos.jpeg') }}" 
+                alt="Modrinth Logo" class="modrinth-logo">
+            <span>Modrinth Plugin Installer</span>
+        </h3>
+        <p>Zadejte URL pluginu z Modrinth pro jeho stažení a instalaci:</p>
+        
+        <div class="manual-download-form">                
+            <div class="form-group">
+                <label for="plugin-url-input">URL pluginu z Modrinth</label>
+                <input type="text" id="plugin-url-input" class="form-control" 
+                       placeholder="https://modrinth.com/plugin/nazev-pluginu">
+            </div>
+            
+            <button id="get-download-link-btn" class="btn btn-primary">
+                <i class="fas fa-link"></i> Získat download link
+            </button>
+            
+            <div id="result-display" class="result-display">
+                <div class="result-content"></div>
+                <div class="result-actions">
+                    <button id="install-from-url-btn" class="btn btn-success">
+                        <i class="fas fa-download"></i> Nainstalovat plugin
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
     <div class="plugins-status-bar">
         <span id="plugins-status-message">Připraveno</span>
