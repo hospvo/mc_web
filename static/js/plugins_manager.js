@@ -362,7 +362,8 @@ async function handleManualDownload() {
             </button>
         `;
 
-        // Store data for installation
+        // Store data for installation - DŮLEŽITÉ: Uložíme i původní URL
+        resultDiv.dataset.url = url;
         resultDiv.dataset.downloadUrl = downloadUrl;
         resultDiv.dataset.pluginName = pluginName;
 
@@ -383,51 +384,79 @@ async function handleManualDownload() {
 
 async function installFromUrl() {
     const resultDiv = document.getElementById('result-display');
+    const url = resultDiv.dataset.url;
     const downloadUrl = resultDiv.dataset.downloadUrl;
     const pluginName = resultDiv.dataset.pluginName || 'Manuálně přidaný plugin';
+    const serverId = currentServerId;
 
-    if (!downloadUrl) {
-        showError('Neplatná download URL');
-        return;
-    }
-
-    if (!confirm(`Opravdu chcete nainstalovat plugin "${pluginName}"?`)) {
+    if (!url || !downloadUrl || !serverId) {
+        showError('Chybějící požadované údaje');
         return;
     }
 
     try {
         showStatus('Instaluji plugin...');
         
-        const response = await fetch(`/api/plugins/install-from-url?server_id=${currentServerId}`, {
+        const response = await fetch(`/api/plugins/install-from-url`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                download_url: downloadUrl,
-                plugin_name: pluginName,
-                server_id: currentServerId
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                url: url,
+                download_url: downloadUrl,  
+                server_id: serverId,
+                plugin_name: pluginName
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `HTTP chyba: ${response.status}`);
-        }
-
         const result = await response.json();
         
-        if (result.success) {
-            showSuccess(`Plugin "${pluginName}" byl úspěšně nainstalován. Restartujte server pro aplikování změn.`);
-            // Refresh installed plugins list
-            loadInstalledPlugins();
-        } else {
-            throw new Error(result.error || 'Neznámá chyba při instalaci');
+        if (!response.ok) {
+            // Speciální případ - plugin již existuje
+            if (result.plugin_exists) {
+                showPluginExistsError(result.plugin_name, result.plugin_id);
+            } else {
+                throw new Error(result.error || 'Neznámá chyba při instalaci');
+            }
+            return;
         }
+
+
+        showSuccess(`Plugin "${pluginName}" byl úspěšně nainstalován. Restartujte server pro aplikování změn.`);
+        loadInstalledPlugins();
     } catch (err) {
         console.error('Instalace selhala:', err);
         showError('Chyba při instalaci: ' + (err.message || 'Neznámá chyba'));
     }
 }
 
+
+// Nová funkce pro zobrazení informace o existujícím pluginu
+function showPluginExistsError(pluginName, pluginId) {
+    const resultDiv = document.getElementById('result-display');
+    const resultContent = resultDiv.querySelector('.result-content');
+    
+    resultContent.innerHTML = `
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Plugin již existuje:</strong> ${escapeHtml(pluginName)}
+        </div>
+        <p>Tento plugin je již nainstalován v systému.</p>
+    `;
+    
+    resultDiv.style.display = 'block';
+    showWarning('Plugin již existuje v systému');
+}
+
+// Funkce pro možnost přesto nainstalovat
+function showInstallAnywayPrompt(pluginId, pluginName) {
+    if (confirm(`Opravdu chcete přesto nainstalovat plugin "${pluginName}"?`)) {
+        // Volání speciálního endpointu pro přepsání existujícího pluginu
+        forceInstallPlugin(pluginId);
+    }
+}
 // Helper functions
 function isValidCustomUrl(url) {
     try {
@@ -496,6 +525,16 @@ function showError(message) {
         statusElement.textContent = message;
         statusElement.style.display = 'block';
         statusElement.className = 'status-message error';
+    }
+}
+
+function showWarning(message) {
+    console.warn("Warning:", message);
+    const statusElement = document.getElementById('status-message');
+    if (statusElement) {
+        statusElement.textContent = message;
+        statusElement.style.display = 'block';
+        statusElement.className = 'status-message warning';
     }
 }
 

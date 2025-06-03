@@ -5,8 +5,7 @@ def delete_imported_plugins():
     with app.app_context():
         # Najdi pluginy, které chceme smazat
         plugins_to_delete = Plugin.query.filter_by(
-            plugin_type="core",
-            compatible_with="Folia"
+            plugin_type="optional",
         ).all()
 
         plugin_ids = [plugin.id for plugin in plugins_to_delete]

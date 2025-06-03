@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 def extract_slug_from_url(url):
     """Extract the project slug from a Modrinth URL."""
     parsed = urlparse(url)
+    print(f"[DEBUG] URL path: {parsed.path}")
     path_parts = parsed.path.strip("/").split("/")
     
     if len(path_parts) < 2 or path_parts[0] != "plugin":
@@ -138,15 +139,18 @@ def handle_web_request(url):
         
         download_url = get_download_url(url)
         plugin_info = get_modrinth_plugin_info(extract_slug_from_url(url))
-        
+        plugin_name = plugin_info["basic_info"]["title"] or plugin_info["basic_info"]["slug"]
+
         return {
             "success": True,
             "download_url": download_url,
-            "plugin_name": plugin_info["basic_info"]["title"],
-            "plugin_version": plugin_info["latest_version"]["version_number"]
+            "plugin_name": plugin_name,
+            "info": plugin_info  # Volitelné – můžeš vynechat, pokud frontend nechce víc dat
         }
-        
-    except ValueError as e:
-        return {"success": False, "error": str(e)}
+
     except Exception as e:
-        return {"success": False, "error": f"Failed to process plugin: {str(e)}"}
+        return {
+            "success": False,
+            "error": str(e)
+        }
+

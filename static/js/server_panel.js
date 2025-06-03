@@ -133,13 +133,15 @@ function loadLogs() {
         .then(res => res.json())
         .then(data => {
             const logBox = document.getElementById("log-output");
-            logBox.textContent = data.lines.join('');
+            // Zde použijeme innerHTML, abychom vykreslili HTML s barvami
+            logBox.innerHTML = data.html;
             logBox.scrollTop = logBox.scrollHeight;
         })
         .catch(error => {
             console.error('Chyba při načítání logů:', error);
         });
 }
+
 
 setInterval(loadLogs, 3000);
 loadLogs();

@@ -640,7 +640,7 @@ form {
   color: #0f0;
   padding: 12px;
   min-height: 200px;
-  max-height: 300px;
+  max-height: 350px;
   overflow-y: auto;
   margin-bottom: 15px;
   border: 1px solid #333;
@@ -648,6 +648,10 @@ form {
   white-space: pre-wrap;
   font-family: 'Courier New', Courier, monospace; /* Konzistentní typ písma pro příkazový řádek */
   transition: background-color 0.3s ease; /* Plynulý přechod pro změnu pozadí */
+  letter-spacing: 0.05em;    /* trochu větší mezery mezi písmeny pro lepší čitelnost */
+  font-weight: 500;          /* mírně tučnější písmo pro lepší čitelnost */
+  font-size: 15px;           /* o něco menší, aby se vešlo více textu */
+  line-height: 0.75;          /* trochu větší řádkování pro přehlednost */
 }
 
 .console-output:hover {
@@ -662,14 +666,14 @@ form {
 }
 
 .console-input {
-  width: 90%; /* Rozšíření na celou šířku */
+  width: 90%;
   padding: 12px;
   font-size: 14px;
   background-color: #333;
   color: white;
   border: 1px solid #444;
-  border-radius: 6px; /* Zaoblenější okraje */
-  min-height: 20px; /* Větší výška pro pohodlné psaní */
+  border-radius: 6px;
+  min-height: 20px;
   resize: none;
   transition: border-color 0.3s ease, background-color 0.3s ease;
 }
@@ -1324,4 +1328,29 @@ form {
     height: 32px;
     width: auto;
     display: inline-block;
+}
+
+.plugin-manual-download p {
+    color: #e2e8f0; /* světlá šedá vhodná pro tmavé pozadí */
+    font-size: 1rem; /* přiměřená velikost písma */
+    line-height: 1.5; /* lepší čitelnost */
+    margin-bottom: 1em; /* mezera pod odstavcem */
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+    color: #856404;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.status-message.warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 5px;
 }

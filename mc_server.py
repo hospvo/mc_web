@@ -9,6 +9,9 @@ import threading
 from flask import Blueprint, request, jsonify, current_app, abort
 from flask_login import login_required, current_user
 from models import db, User, Plugin, Server, PluginConfig, PluginUpdateLog, server_plugins
+from plugin_instaler_modrinth import extract_slug_from_url, get_modrinth_plugin_info, get_download_url
+import requests
+from ansi2html import Ansi2HTMLConverter
 
 # Base directory where all server folders will be stored
 BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
@@ -115,6 +118,71 @@ class PluginManager:
         for dir_path in dirs:
             full_path = os.path.join(self.external_storage, dir_path)
             os.makedirs(full_path, exist_ok=True)
+
+    def install_plugin_from_modrinth_url(self, url, server_id, user_id, download_url):
+        try:
+            slug = extract_slug_from_url(url)
+            info = get_modrinth_plugin_info(slug)
+            #download_url = get_download_url(url)
+
+            # Získání hlavních informací z API
+            title = info["basic_info"]["title"] or slug
+            version = info["latest_version"]["version_number"] or "unknown"
+            author = (info["team"][0]["username"] if info["team"] else "unknown")
+            description = info["basic_info"]["description"] or ""
+            category = "; ".join(info["basic_info"].get("categories", ["unknown"]))
+
+            # Kontrola existence v DB
+            existing_plugin = Plugin.query.filter_by(name=slug).first()
+            if existing_plugin:
+                # Vrátíme speciální status kód 409 Conflict
+                return False, {
+                    "type": "plugin_exists",
+                    "message": f"Plugin '{title}' již existuje v databázi.",
+                    "plugin_id": existing_plugin.id,
+                    "plugin_name": existing_plugin.display_name
+                }
+
+            # Stažení .jar do správné složky
+            filename = f"{slug}-{version}.jar"
+            dest_path = os.path.join(BASE_PLUGIN_PATH, "plugins", "core", filename)
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+            r = requests.get(download_url)
+            if r.status_code != 200:
+                return False, "Chyba při stahování pluginu"
+            with open(dest_path, "wb") as f:
+                f.write(r.content)
+
+            # Vytvoření záznamu v DB
+            plugin = Plugin(
+                name=slug,
+                display_name=title,
+                version=version,
+                author=author,
+                description=description,
+                file_path=dest_path,
+                category=category,
+                compatible_with="; ".join(info["latest_version"].get("game_versions", [])),
+                download_url=download_url,
+                source="modrinth",
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            db.session.add(plugin)
+            db.session.commit()
+
+            # Instalace na server
+            success, message = plugin_manager.install_plugin_to_server(
+                plugin_id=plugin.id,
+                server_id=server_id,
+                user_id=user_id
+            )
+            return success, message
+
+        except Exception as e:
+            db.session.rollback()
+            return False, f"[CHYBA] {str(e)}"
     
     def install_plugin_to_server(self, plugin_id, server_id, user_id):
         """Nainstaluje plugin na konkrétní server"""
@@ -804,14 +872,21 @@ def restart_server_api():
     return jsonify({'success': start_success})
 
 @server_api.route('/api/server/logs')
-@login_required
 def server_logs_api():
     server_id = request.args.get('server_id', type=int)
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
-    
+
     lines = request.args.get('lines', default=50, type=int)
-    return jsonify({"lines": read_latest_logs(server_id, lines)})
+    ansi_lines = read_latest_logs(server_id, lines)  # předpokládám, že to vrací list řádků s ANSI kódy
+
+    # Spojíme řádky do jednoho textu
+    ansi_text = "\n".join(ansi_lines)
+
+    conv = Ansi2HTMLConverter(inline=True)
+    html_text = conv.convert(ansi_text, full=False)
+
+    return jsonify({"html": html_text})
 
 @server_api.route('/api/server/command', methods=['POST'])
 @login_required
@@ -1125,5 +1200,52 @@ def check_plugin_updates():
     
     return jsonify(updates)
 
+@server_api.route('/api/plugins/install-from-url', methods=['POST'])
+@login_required
+def install_plugin_from_url():
+    if not request.is_json:
+        return jsonify({'success': False, 'error': 'Request must be JSON'}), 400
 
+    data = request.get_json()
+    url = data.get('url')
+    download_url = data.get('download_url')  
+    server_id = data.get('server_id')
+    plugin_name = data.get('plugin_name')  
+    
+    if not url:
+        return jsonify({'success': False, 'error': 'Chybí url'}), 400
+    if not download_url:  
+        return jsonify({'success': False, 'error': 'Chybí download_url'}), 400
+    if not server_id:
+        return jsonify({'success': False, 'error': 'Chybí server_id'}), 400
 
+    # Ověření vlastnictví serveru
+    server = Server.query.get_or_404(server_id)
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+
+    # Volání funkce pro instalaci
+    success, result = plugin_manager.install_plugin_from_modrinth_url(
+        url, 
+        server_id, 
+        current_user.id, 
+        download_url  
+    )
+
+    if success:
+        return jsonify({'success': True, 'message': result})
+    else:
+        # Speciální ošetření pro existující plugin
+        if isinstance(result, dict) and result.get("type") == "plugin_exists":
+            return jsonify({
+                'success': False,
+                'error': result["message"],
+                'plugin_exists': True,
+                'plugin_id': result["plugin_id"],
+                'plugin_name': result["plugin_name"]
+            }), 409  # HTTP 409 Conflict
+        else:
+            return jsonify({
+                'success': False,
+                'error': result["message"] if isinstance(result, dict) else result
+            }), 400

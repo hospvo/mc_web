@@ -71,6 +71,8 @@ class Plugin(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     # Kategorie pro organizaci
     category = db.Column(db.String(50))
+    #zdroj stažení
+    source  =db.Column(db.String(50))
     # Závislosti (JSON seznam názvů pluginů)
     dependencies = db.Column(db.Text)
 
