@@ -5,6 +5,7 @@ from models import db, User, Server  # Ujisti se, že zde správně importuješ 
 from auth import auth_blueprint
 import os
 from mc_server import server_api
+from waitress import serve
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'tajnyklic'
@@ -79,5 +80,6 @@ if __name__ == '__main__':
     if not os.path.exists('db.sqlite3'):
         with app.app_context():
             db.create_all()
-    app.run(debug=True)
+    
+    serve(app, host='127.0.0.1', port=8000)
 

@@ -47,6 +47,10 @@ class Server(db.Model):
     # Nainstalované pluginy (M:N vztah)
     plugins = db.relationship('Plugin', secondary=server_plugins, 
                             backref='servers', lazy='dynamic')
+    # Verze hry 
+    #server_version = db.column(db.Integer, nullable=False)
+    # loader serveru
+    #server_loader = db.column(db.Integer, nullable=False)
 
     def __repr__(self):
         return f'<Server {self.name}, Owner {self.owner.username}>'

@@ -129,22 +129,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function loadLogs() {
     const serverId = getCurrentServerId();
-    fetch(`/api/server/logs?server_id=${serverId}&lines=100`)
+    const logBox = document.getElementById("log-output");
+    const wasScrolledToBottom = logBox.scrollTop + logBox.clientHeight >= logBox.scrollHeight - 20;
+
+    fetch(`/api/server/logs?server_id=${serverId}&lines=0`)
         .then(res => res.json())
         .then(data => {
-            const logBox = document.getElementById("log-output");
-            // Zde použijeme innerHTML, abychom vykreslili HTML s barvami
-            logBox.innerHTML = data.html;
-            logBox.scrollTop = logBox.scrollHeight;
+            // Pouze aktualizuj, pokud se obsah změnil
+            if (logBox.innerHTML !== data.html) {
+                logBox.innerHTML = data.html;
+                if (wasScrolledToBottom) {
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+            }
         })
         .catch(error => {
             console.error('Chyba při načítání logů:', error);
+            // Zobraz chybovou zprávu přímo v konzoli
+            logBox.innerHTML += `<span class="mc-error">[WEB ERROR] Failed to load logs: ${error.message}</span><br>`;
         });
 }
 
-
-setInterval(loadLogs, 3000);
-loadLogs();
+// Načítání každé 2 sekundy (místo 3)
+setInterval(loadLogs, 2000);
+// Okamžité načtení při načtení stránky
+document.addEventListener('DOMContentLoaded', loadLogs);
 
 function sendCommand() {
     const cmdInput = document.getElementById("console-input");

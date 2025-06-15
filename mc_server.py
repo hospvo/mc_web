@@ -523,17 +523,23 @@ def start_server(server_id):
     global USED_CPU
     paths = get_server_paths(server_id)
     if not paths:
-        return False
+        return {'status': 'error', 'message': 'Server paths not found'}
     
     server = Server.query.get(server_id)
     if not server:
         return {'status': 'error', 'message': 'Server config not found'}
     
     instance = server_manager.get_instance(server_id)
+
+    # Check if server is already running
+    status = get_server_status(server_id)
+    if status['status'] == 'running':
+        return {'status': 'error', 'message': 'Server is already running'}
     
     # Pokud už server běží, nechtějte ho startovat znovu
     if instance.process and instance.process.poll() is None:
         return False
+    
     
     try:
         server_process = subprocess.Popen(
