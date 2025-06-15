@@ -5,8 +5,12 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 # Konfigurace
+<<<<<<< Updated upstream
 #BASE_PATH = r"D:\\minecraft_plugins"
 BASE_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
+=======
+BASE_PATH = r"E:\\minecraft_plugins"
+>>>>>>> Stashed changes
 PLUGINS_DIR = os.path.join(BASE_PATH, "plugins/core")
 TEMP_DIR = os.path.join(BASE_PATH, "temp")
 DB_FILE = os.path.join(BASE_PATH, "plugins_db.json")
