@@ -14,9 +14,10 @@ import requests
 from ansi2html import Ansi2HTMLConverter
 
 # Base directory where all server folders will be stored
-BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
-BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
-#BASE_SERVERS_PATH = r"D:\\"
+#BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
+#BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
+BASE_SERVERS_PATH = r"D:\\"
+BASE_PLUGIN_PATH = r"E:\minecraft_plugins"
 #seznam aktuálně využitých jader
 USED_CPU = []
 total_cores = psutil.cpu_count(logical=True)  # fyzická jádra, nebo True pro logická
