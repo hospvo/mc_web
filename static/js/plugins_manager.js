@@ -304,85 +304,77 @@ async function handleManualDownload() {
     const resultContent = resultDiv.querySelector('.result-content');
     const installBtn = document.getElementById('install-from-url-btn');
 
-    // Reset UI state
     resultDiv.style.display = 'none';
     installBtn.style.display = 'none';
     resultContent.innerHTML = '';
-    showStatus('Zpracovávám URL...');
+    showStatus('Získávám informace o pluginu...');
 
-    // Validate input
     if (!url) {
         showError('Prosím zadejte URL pluginu z Modrinth');
         return;
     }
 
     try {
-        let downloadUrl, pluginName;
+        const response = await fetch('/api/plugins/get-download-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: url,
+                server_id: currentServerId
+            })
+        });
 
-        // Validate Modrinth URL
-        const slugMatch = url.match(/modrinth\.com\/plugin\/([^\/]+)/);
-        if (!slugMatch) {
-            throw new Error('Neplatný Modrinth odkaz. Očekávám formát "https://modrinth.com/plugin/nazev-pluginu"');
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Chyba při zpracování pluginu.');
+
+        const { plugin_name, download_url, info, compatible, reason } = result;
+        const loaders = (info.latest_version?.loaders || []).join(', ');
+        const versions = (info.latest_version?.game_versions || []).join(', ');
+
+        let html = `
+            <p class="success-message"><i class="fas fa-check-circle"></i> Plugin nalezen</p>
+            <p><strong>Plugin:</strong> ${escapeHtml(plugin_name)}</p>
+            <p><strong>Kompatibilita:</strong></p>
+            <ul>
+                <li><strong>Loadery:</strong> ${escapeHtml(loaders || 'Neznámo')}</li>
+                <li><strong>Minecraft verze:</strong> ${escapeHtml(versions || 'Neznámo')}</li>
+            </ul>
+        `;
+
+        if (!compatible) {
+            html += `<p class="error-message"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(reason || 'Plugin není kompatibilní se serverem')}</p>
+                     <button onclick="installFromUrl(true)" class="force-install-btn">
+                        <i class="fas fa-exclamation-circle"></i> Přesto nainstalovat
+                     </button>`;
+        } else {
+            installBtn.style.display = 'inline-block';
         }
 
-        const slug = slugMatch[1];
-        
-        // Get plugin info
-        const pluginRes = await fetch(`https://api.modrinth.com/v2/project/${slug}`);
-        if (!pluginRes.ok) throw new Error('Modrinth plugin nenalezen');
-        const pluginData = await pluginRes.json();
-        pluginName = pluginData.title || slug;
-
-        // Get versions
-        const versionRes = await fetch(`https://api.modrinth.com/v2/project/${slug}/version`);
-        if (!versionRes.ok) throw new Error('Chyba při načítání verzí');
-        const versions = await versionRes.json();
-        
-        if (!versions.length) throw new Error('Nenalezeny žádné verze pluginu');
-        
-        // Find compatible version (Paper, Purpur, Spigot)
-        const compatibleVersion = versions.find(v => 
-            v.loaders.includes('paper') || v.loaders.includes('purpur') || v.loaders.includes('spigot')
-        ) || versions[0];
-        
-        if (!compatibleVersion.files?.[0]?.url) {
-            throw new Error('Nepodařilo se získat download URL');
-        }
-        
-        downloadUrl = compatibleVersion.files[0].url;
-
-        // Display results
-        resultContent.innerHTML = `
-            <p class="success-message"><i class="fas fa-check-circle"></i> Úspěšně nalezen download URL</p>
-            <p><strong>Plugin:</strong> ${escapeHtml(pluginName)}</p>
+        html += `
             <p><strong>Download URL:</strong></p>
-            <input type="text" value="${escapeHtml(downloadUrl)}" readonly class="download-url">
-            <button onclick="copyToClipboard('${escapeHtml(downloadUrl)}')" class="copy-btn">
+            <input type="text" value="${escapeHtml(download_url)}" readonly class="download-url">
+            <button onclick="copyToClipboard('${escapeHtml(download_url)}')" class="copy-btn">
                 <i class="fas fa-copy"></i> Kopírovat URL
             </button>
         `;
 
-        // Store data for installation - DŮLEŽITÉ: Uložíme i původní URL
+        resultContent.innerHTML = html;
         resultDiv.dataset.url = url;
-        resultDiv.dataset.downloadUrl = downloadUrl;
-        resultDiv.dataset.pluginName = pluginName;
-
-        // Show results and install button
-        installBtn.style.display = 'inline-block';
+        resultDiv.dataset.downloadUrl = download_url;
+        resultDiv.dataset.pluginName = plugin_name;
         resultDiv.style.display = 'block';
-        showSuccess('Download URL úspěšně získána');
 
+        showSuccess('Informace o pluginu načteny');
     } catch (err) {
         console.error('Chyba při zpracování URL:', err);
-        resultContent.innerHTML = `
-            <p class="error-message"><i class="fas fa-exclamation-circle"></i> ${escapeHtml(err.message)}</p>
-        `;
+        resultContent.innerHTML = `<p class="error-message"><i class="fas fa-exclamation-circle"></i> ${escapeHtml(err.message)}</p>`;
         resultDiv.style.display = 'block';
         showError('Chyba: ' + err.message);
     }
 }
 
-async function installFromUrl() {
+
+async function installFromUrl(force = false) {
     const resultDiv = document.getElementById('result-display');
     const url = resultDiv.dataset.url;
     const downloadUrl = resultDiv.dataset.downloadUrl;
@@ -396,7 +388,7 @@ async function installFromUrl() {
 
     try {
         showStatus('Instaluji plugin...');
-        
+
         const response = await fetch(`/api/plugins/install-from-url`, {
             method: 'POST',
             headers: {
@@ -404,17 +396,17 @@ async function installFromUrl() {
                 'Accept': 'application/json'
             },
             body: JSON.stringify({
-                url: url,
-                download_url: downloadUrl,  
+                url,
+                download_url: downloadUrl,
                 server_id: serverId,
-                plugin_name: pluginName
+                plugin_name: pluginName,
+                force_install: force
             })
         });
 
         const result = await response.json();
-        
+
         if (!response.ok) {
-            // Speciální případ - plugin již existuje
             if (result.plugin_exists) {
                 showPluginExistsError(result.plugin_name, result.plugin_id);
             } else {
@@ -422,7 +414,6 @@ async function installFromUrl() {
             }
             return;
         }
-
 
         showSuccess(`Plugin "${pluginName}" byl úspěšně nainstalován. Restartujte server pro aplikování změn.`);
         loadInstalledPlugins();

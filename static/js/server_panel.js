@@ -11,20 +11,20 @@ function setupBackButton() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const serverId = getCurrentServerId();
     setupBackButton();
     updateStatus();
-    
+
     // Funkce pro aktualizaci stavu
     async function updateStatus() {
         try {
             const response = await fetch(`/api/server/status?server_id=${serverId}`);
             const data = await response.json();
-            
+
             const indicator = document.querySelector('.status-indicator');
             const statusText = document.querySelector('.status-text');
-            
+
             if (data.status === 'running') {
                 indicator.className = 'status-indicator online';
                 statusText.textContent = 'Online';
@@ -32,17 +32,72 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('cpu-usage').textContent = data.cpu_percent || '0';
                 document.getElementById('cpu-max').textContent = data.cpu_max || '';
                 document.getElementById('player-count').textContent = data.players || '0';
+                document.getElementById('player-count-display').textContent = data.players || '0';
+
+                // Update player list
+                updatePlayerList(data.player_names || []);
             } else {
                 indicator.className = 'status-indicator offline';
                 statusText.textContent = 'Offline';
                 document.getElementById('ram-usage').textContent = '-';
                 document.getElementById('cpu-usage').textContent = data.cpu_percent || '-';
                 document.getElementById('player-count').textContent = '-';
+                document.getElementById('player-count-display').textContent = '0';
+
+                // Clear player list when server is offline
+                updatePlayerList([]);
             }
         } catch (error) {
             console.error('Chyba při načítání stavu:', error);
         }
-    };
+    }
+
+    let lastPlayerList = [];
+
+    function updatePlayerList(players) {
+        const table = document.getElementById('online-players-table');
+        const tbody = document.getElementById('online-players-list');
+        const noPlayersMsg = document.getElementById('no-players-message');
+
+        // Rychlé porovnání – pokud se seznam nezměnil, nic nedělej
+        if (arraysEqual(players, lastPlayerList)) {
+            return; // Žádná změna, nevykonáváme nic
+        }
+
+        // Ulož nový seznam jako poslední známý
+        lastPlayerList = players;
+
+        // Vymaž starý obsah
+        tbody.innerHTML = '';
+
+        if (players.length > 0) {
+            table.style.display = 'table';
+            noPlayersMsg.style.display = 'none';
+
+            players.forEach((player, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${player}</td>
+            `;
+                tbody.appendChild(row);
+            });
+        } else {
+            table.style.display = 'none';
+            noPlayersMsg.style.display = 'block';
+        }
+    }
+
+
+    function arraysEqual(a, b) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    }
+
+
 
     // Start serveru
     document.getElementById('start-btn').addEventListener('click', async () => {
@@ -54,7 +109,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             const result = await response.json();
-            
+
             if (result.success) {
                 alert('Server se spouští...');
                 setTimeout(updateStatus, 3000);
@@ -72,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!confirm('Opravdu chcete vypnout server? Všichni hráči budou odpojeni.')) {
             return;
         }
-        
+
         try {
             const response = await fetch(`/api/server/stop?server_id=${serverId}`, {
                 method: 'POST',
@@ -81,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             const result = await response.json();
-            
+
             if (result.success) {
                 alert('Server se vypíná...');
                 setTimeout(updateStatus, 5000);
@@ -99,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!confirm('Opravdu chcete restartovat server? Všichni hráči budou odpojeni.')) {
             return;
         }
-        
+
         try {
             const response = await fetch(`/api/server/restart?server_id=${serverId}`, {
                 method: 'POST',
@@ -108,7 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             const result = await response.json();
-            
+
             if (result.success) {
                 alert('Server se restartuje...');
                 setTimeout(updateStatus, 8000);
@@ -163,7 +218,7 @@ function sendCommand() {
 }
 
 // Odeslání příkazu při stisknutí Enteru
-document.getElementById('console-input').addEventListener('keydown', function(event) {
+document.getElementById('console-input').addEventListener('keydown', function (event) {
     if (event.key === 'Enter') {
         sendCommand();
     }
@@ -178,15 +233,15 @@ async function loadBackups() {
     try {
         const response = await fetch(`/api/server/backups?server_id=${serverId}`);
         const backups = await response.json();
-        
+
         const backupList = document.getElementById('backup-list');
         backupList.innerHTML = '';
-        
+
         if (backups.length === 0) {
             backupList.innerHTML = '<p>Žádné zálohy nebyly nalezeny</p>';
             return;
         }
-        
+
         backups.forEach(backup => {
             const backupItem = document.createElement('div');
             backupItem.className = 'backup-item';
@@ -207,12 +262,12 @@ async function loadBackups() {
             `;
             backupList.appendChild(backupItem);
         });
-        
+
         // Přidání event listenerů pro tlačítka
         document.querySelectorAll('.restore-btn').forEach(btn => {
             btn.addEventListener('click', () => restoreBackup(btn.dataset.name));
         });
-        
+
         document.querySelectorAll('.delete-btn').forEach(btn => {
             btn.addEventListener('click', () => deleteBackup(btn.dataset.name));
         });
@@ -226,7 +281,7 @@ async function createBackup() {
     const backupBtn = document.getElementById('create-backup-btn');
     const serverId = getCurrentServerId();
     backupBtn.disabled = true;
-    
+
     try {
         const statusData = await (await fetch(`/api/server/status?server_id=${serverId}`)).json();
         if (statusData.status === 'running') {
@@ -237,8 +292,8 @@ async function createBackup() {
         const result = await (await fetch(`/api/server/backup/create?server_id=${serverId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                name: document.getElementById('backup-name').value.trim() || undefined 
+            body: JSON.stringify({
+                name: document.getElementById('backup-name').value.trim() || undefined
             })
         })).json();
 
@@ -269,9 +324,9 @@ async function restoreBackup(backupName) {
             },
             body: JSON.stringify({ name: backupName })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             alert('Záloha byla úspěšně obnovena. Můžete spustit server.');
         } else {
@@ -287,7 +342,7 @@ async function restoreBackup(backupName) {
 async function deleteBackup(backupName) {
     const serverId = getCurrentServerId();
     if (!confirm(`Smazat zálohu "${backupName}"?`)) return;
-    
+
     try {
         const result = await (await fetch(`/api/server/backup/delete?server_id=${serverId}`, {
             method: 'POST',
@@ -323,22 +378,22 @@ async function updateDiskUsage() {
 
         const serverBar = document.getElementById('server-usage-bar');
         const backupBar = document.getElementById('backup-usage-bar');
-        
+
         serverBar.style.width = `${data.server_percent}%`;
         backupBar.style.width = `${data.backup_percent}%`;
 
         const usedPercent = Math.min(100, data.server_percent + data.backup_percent);
         document.documentElement.style.setProperty('--used-percent', `${usedPercent}%`);
 
-        document.getElementById('server-usage-text').textContent = 
+        document.getElementById('server-usage-text').textContent =
             `${formatSize(data.server_size)} (${data.server_percent.toFixed(1)}%)`;
-        
-        document.getElementById('backup-usage-text').textContent = 
+
+        document.getElementById('backup-usage-text').textContent =
             `${formatSize(data.backup_size)} (${data.backup_percent.toFixed(1)}%) - ${data.backup_count} záloh`;
-        
-        document.getElementById('total-usage-text').textContent = 
+
+        document.getElementById('total-usage-text').textContent =
             `${formatSize(data.total_size)} / ${formatSize(data.max_capacity)}`;
-        
+
         document.getElementById('backup-count').textContent = data.backup_count;
 
         serverBar.title = `Server: ${data.server_percent.toFixed(1)}%`;
@@ -349,7 +404,7 @@ async function updateDiskUsage() {
 }
 
 // Přidejte volání této funkce při načtení stránky
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     updateDiskUsage();
     setInterval(updateDiskUsage, 60000);
 });
@@ -432,15 +487,15 @@ async function loadQuickViewPlugins() {
     try {
         const response = await fetch(`/api/plugins/installed?server_id=${serverId}`);
         const plugins = await response.json();
-        
+
         const list = document.getElementById('installed-plugins-quickview');
         list.innerHTML = '';
-        
+
         if (plugins.length === 0) {
             list.innerHTML = '<div class="quickview-plugin-item">Žádné pluginy</div>';
             return;
         }
-        
+
         // Zobrazíme pouze prvních 5 pluginů
         plugins.slice(0, 5).forEach(plugin => {
             const pluginItem = document.createElement('div');
@@ -451,7 +506,7 @@ async function loadQuickViewPlugins() {
             `;
             list.appendChild(pluginItem);
         });
-        
+
         // Pokud je pluginů více než 5, zobrazíme počítadlo
         if (plugins.length > 5) {
             const moreItem = document.createElement('div');

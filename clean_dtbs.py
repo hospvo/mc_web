@@ -1,5 +1,5 @@
 from app import app
-from models import db, Plugin, PluginUpdateLog
+from models import db, Plugin, PluginUpdateLog, Server
 
 def delete_imported_plugins():
     with app.app_context():
@@ -26,5 +26,15 @@ def delete_imported_plugins():
         else:
             print("Žádné pluginy ke smazání.")
 
+def reset_port_database():
+    with app.app_context():
+        servers = Server.query.filter(Server.id.in_([1, 2, 3])).all()
+        for server in servers:
+            server.server_port = 0
+            server.diagnostic_server_port = 0
+        db.session.commit()
+
+
 if __name__ == "__main__":
-    delete_imported_plugins()
+    #delete_imported_plugins()
+    reset_port_database()

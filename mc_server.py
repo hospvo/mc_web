@@ -9,13 +9,17 @@ import threading
 from flask import Blueprint, request, jsonify, current_app, abort
 from flask_login import login_required, current_user
 from models import db, User, Plugin, Server, PluginConfig, PluginUpdateLog, server_plugins
-from plugin_instaler_modrinth import extract_slug_from_url, get_modrinth_plugin_info, get_download_url
+from plugin_instaler_modrinth import extract_slug_from_url, get_modrinth_plugin_info, get_download_url, handle_web_request
 import requests
 from ansi2html import Ansi2HTMLConverter
+import yaml
+from mcstatus import JavaServer
+
 
 # Base directory where all server folders will be stored
 BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
 BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
+BASE_BUILD_PATH = r"C:\Users\hospv\Documents\minecraft_builds"
 #BASE_SERVERS_PATH = r"D:\\"
 #seznam aktuálně využitých jader
 USED_CPU = []
@@ -471,23 +475,83 @@ def get_server_status(server_id):
     }
 
 
-
 def get_online_players(server_id):
-    """Get online players count for specific server"""
-    paths = get_server_paths(server_id)
-    if not paths:
-        return 0
+    """Získání počtu online hráčů – upřednostňuje query, pak ping, pak diagnostiku."""
+    try:
+        # 0. Načtení serveru z databáze
+        server = Server.query.get(server_id)
+        if not server:
+            print(f"[WARN] Server {server_id} nebyl nalezen v databázi.")
+            return 0
+
+        server_ip = "localhost"
         
-    log_path = os.path.join(paths['server_path'], "logs", "latest.log")
-    if not os.path.exists(log_path):
+        # 1. Query (UDP) – pokud je aktivní
+        if server.query_port:
+            try:
+                print(f"[INFO] Pokus o query na {server_ip}:{server.query_port}")
+                server_query = JavaServer(server_ip, server.query_port).query()
+                return server_query.players.online
+            except Exception as e:
+                print(f"[WARN] Query selhalo na portu {server.query_port}: {e}")
+
+        # 2. Ping (TCP) – přes server-port
+        if server.port:
+            try:
+                print(f"[INFO] Pokus o ping na {server_ip}:{server.port}")
+                server_status = JavaServer(server_ip, server.port).status()
+                return server_status.players.online
+            except Exception as e:
+                print(f"[WARN] Ping selhal na portu {server.port}: {e}")
+
+        # 3. Diagnostický HTTP endpoint – pokud je nastaven
+        if server.diagnostic_server_port:
+            try:
+                url = f"http://localhost:{server.diagnostic_server_port}/players"
+                print(f"[INFO] Pokus o dotaz na diagnostický endpoint: {url}")
+                response = requests.get(url, timeout=3)
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get('online_players', 0)
+            except requests.exceptions.RequestException as e:
+                print(f"[WARN] Chyba při dotazu na diagnostický port: {e}")
+
         return 0
-        
-    with open(log_path, 'r', encoding='utf-8') as f:
-        for line in reversed(f.readlines()[-500:]):  # Read last 500 lines
-            if "joined the game" in line:
-                parts = line.split()
-                return int(parts[parts.index("There")+2])  # Parse player count
-    return 0
+
+    except Exception as e:
+        print(f"[ERROR] Neočekávaná chyba při získávání hráčů pro server {server_id}: {e}")
+        return 0
+    
+def get_online_player_names(server_id):
+    """Vrátí seznam jmen hráčů online (preferuje query, fallback na status)."""
+    try:
+        server = Server.query.get(server_id)
+        if not server:
+            return []
+
+        server_ip = "localhost"
+
+        # Query (přes UDP)
+        if server.query_port:
+            try:
+                query = JavaServer(server_ip, server.query_port).query()
+                return query.players.names
+            except Exception as e:
+                print(f"[WARN] Query selhalo: {e}")
+
+        # Status (vzorek)
+        if server.port:
+            try:
+                status = JavaServer(server_ip, server.port).status()
+                return [p.name for p in status.players.sample or []]
+            except Exception as e:
+                print(f"[WARN] Ping selhal: {e}")
+
+        return []
+    except Exception as e:
+        print(f"[ERROR] Neočekávaná chyba při získávání jmen hráčů: {e}")
+        return []
+
 
 def get_backups(server_id):
     """Get backups for specific server"""
@@ -820,7 +884,9 @@ def server_status_api():
     
     status = get_server_status(server_id)
     status['players'] = get_online_players(server_id)
+    status['player_names'] = get_online_player_names(server_id)  # ⬅ přidáno
     return jsonify(status)
+
 
 @server_api.route('/api/server/backups')
 @login_required
@@ -1249,3 +1315,10 @@ def install_plugin_from_url():
                 'success': False,
                 'error': result["message"] if isinstance(result, dict) else result
             }), 400
+        
+@server_api.route("/api/plugins/get-download-info", methods=["POST"])
+def get_plugin_download_info():
+    data = request.get_json()
+    url = data.get("url")
+    server_id = data.get("server_id")
+    return jsonify(handle_web_request(url, server_id))

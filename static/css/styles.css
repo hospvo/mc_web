@@ -626,6 +626,104 @@ form {
   cursor: not-allowed;
 }
 
+
+
+/* Kompaktní styl sekce hráčů */
+#online-players-panel {
+  background: #1f1f1f;
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+  margin-top: 20px;
+  color: #f0f0f0;
+  font-size: 0.88rem; /* základní text o 12 % menší */
+}
+
+#online-players-panel h4 {
+  font-size: 1.05rem; /* původně 1.3 */
+  font-weight: 600;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #00e676;
+}
+
+#online-players-panel h4 i {
+  font-size: 1rem;
+  color: #00e676;
+}
+
+#players-table-container {
+  overflow-x: auto;
+}
+
+#online-players-table {
+  width: 100%;
+  margin-bottom: 0;
+  display: none;
+  border-collapse: collapse;
+  background: transparent;
+  color: #f0f0f0;
+  font-size: 0.85rem;
+}
+
+#online-players-table th,
+#online-players-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#online-players-table th {
+  background-color: #292929;
+  font-weight: 600;
+  color: #ddd;
+}
+
+#online-players-table tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  transition: background-color 0.2s ease-in-out;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* Žádní hráči */
+#no-players-message {
+  padding: 12px;
+  text-align: center;
+  color: #aaa;
+  font-style: italic;
+  font-size: 0.85rem;
+  background-color: rgba(255, 255, 255, 0.025);
+  border-radius: 6px;
+  display: block;
+  margin-top: 8px;
+}
+
+
+#online-players-list tr {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
 /* Styl pro konzoli */
 .console-container {
   background-color: #222;

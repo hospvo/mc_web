@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
+import uuid
 
 db = SQLAlchemy()
 
@@ -44,9 +45,18 @@ class Server(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     # Úroveň služby (1 = základní, 2 = pokročilá, 3 = prémiová)
     service_level = db.Column(db.Integer, nullable=False)
+    # Nové pole pro port serveru (defaultně 25565 - hlavní Minecraft port)
+    server_port = db.Column(db.Integer, nullable=False, default=25565)
+    # Query port 
+    query_port = db.Column(db.Integer, nullable=False, default=25565)
+    # Pole pro servisní port přes které vrací API
+    diagnostic_server_port = db.Column(db.Integer, nullable=True)
+    # informace o buildu  
+    build_version_id = db.Column(db.Integer, db.ForeignKey('build_version.id'), nullable=False)
     # Nainstalované pluginy (M:N vztah)
     plugins = db.relationship('Plugin', secondary=server_plugins, 
                             backref='servers', lazy='dynamic')
+
 
     def __repr__(self):
         return f'<Server {self.name}, Owner {self.owner.username}>'
@@ -110,3 +120,28 @@ class PluginUpdateLog(db.Model):
 
     def __repr__(self):
         return f'<UpdateLog {self.action} {self.plugin.name} by {self.user.username}>'
+    
+class BuildType(db.Model):
+    __tablename__ = 'build_type'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)  # např. 'Paper', 'Purpur'
+    description = db.Column(db.Text)
+
+    versions = db.relationship('BuildVersion', backref='build_type', lazy=True)
+
+    def __repr__(self):
+        return f'<BuildType {self.name}>'
+
+class BuildVersion(db.Model):
+    __tablename__ = 'build_version'
+    id = db.Column(db.Integer, primary_key=True)
+    build_type_id = db.Column(db.Integer, db.ForeignKey('build_type.id'), nullable=False)
+    mc_version = db.Column(db.String(20), nullable=False)  # např. '1.20.1'
+    download_url = db.Column(db.String(500), nullable=False)
+    file_path = db.Column(db.String(255))  # kde je build uložený
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    servers = db.relationship('Server', backref='build_version', lazy=True)
+
+    def __repr__(self):
+        return f'<BuildVersion {self.build_type.name} {self.mc_version}>'

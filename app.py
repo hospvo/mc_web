@@ -1,10 +1,10 @@
 from flask import Flask, render_template, redirect, url_for, request, session, jsonify, abort
 from flask_login import LoginManager, login_required, current_user
 from flask_migrate import Migrate
-from models import db, User, Server  # Ujisti se, že zde správně importuješ db a User
 from auth import auth_blueprint
 import os
 from mc_server import server_api
+from models import db, User, Server
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'tajnyklic'

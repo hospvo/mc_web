@@ -1,6 +1,19 @@
 import requests
 from urllib.parse import urlparse
+from models import db, Server, BuildVersion
 
+
+def get_server_loader_and_version(server_id):
+    """Vrátí loader (typ buildu) a MC verzi pro daný server_id."""
+    server = Server.query.get(server_id)
+    if not server or not server.build_version:
+        raise ValueError("Nelze načíst build informace pro server.")
+
+    build = server.build_version
+    loader = build.build_type.name.lower()  # např. "paper", "purpur", "folia"
+    version = build.mc_version              # např. "1.21.1"
+
+    return loader, version
 
 def extract_slug_from_url(url):
     """Extract the project slug from a Modrinth URL."""
@@ -87,65 +100,87 @@ def get_modrinth_plugin_info(slug):
     }
 
 
-def get_download_url(url):
-    """Get the download URL for a Modrinth plugin version."""
+def get_download_url(url, server_id=None):
     try:
         slug = extract_slug_from_url(url)
-        
         response = requests.get(f"https://api.modrinth.com/v2/project/{slug}/version")
         response.raise_for_status()
         versions = response.json()
-        
+
         if not versions:
             raise ValueError("No versions found for this plugin")
-        
-        # Find compatible version (prefer Paper, Purpur, then Spigot)
-        compatible_version = versions[0]  # default to first version
-        
+
+        # ⬇ Zjistíme loader + verzi pro server
+        preferred_loader = None
+        preferred_mc_version = None
+        if server_id:
+            preferred_loader, preferred_mc_version = get_server_loader_and_version(server_id)
+
+        # Najdeme nejlepší kompatibilní verzi
         for version in versions:
-            if "paper" in version.get("loaders", []):
-                compatible_version = version
-                break
-            elif "purpur" in version.get("loaders", []):
-                compatible_version = version
-                break
-            elif "spigot" in version.get("loaders", []):
-                compatible_version = version
-                break
-        
-        if not compatible_version.get("files") or not compatible_version["files"][0].get("url"):
-            raise ValueError("Could not find download URL for this plugin version")
-        
-        return compatible_version["files"][0]["url"]
-        
+            loaders = version.get("loaders", [])
+            mc_versions = version.get("game_versions", [])
+            if (
+                (not preferred_loader or preferred_loader in loaders)
+                and (not preferred_mc_version or preferred_mc_version in mc_versions)
+            ):
+                # OK – máme shodu
+                files = version.get("files", [])
+                if files and files[0].get("url"):
+                    return files[0]["url"]
+
+        # fallback na první dostupnou
+        return versions[0]["files"][0]["url"]
+
     except Exception as e:
         print(f"[ERROR] Failed to get download URL: {str(e)}")
         raise ValueError(f"Failed to get download URL: {str(e)}")
 
 
-def handle_web_request(url):
-    """Handle the request from the web interface to get download URL."""
+
+def handle_web_request(url, server_id=None):
     try:
         if not url:
             return {"success": False, "error": "Please enter a valid Modrinth plugin URL."}
-        
-        # Validate it's a Modrinth URL
+
         parsed = urlparse(url)
         if parsed.netloc != "modrinth.com" or not parsed.path.startswith("/plugin/"):
             return {
-                "success": False, 
+                "success": False,
                 "error": "Only Modrinth plugin URLs are supported (format: https://modrinth.com/plugin/plugin-name)"
             }
-        
-        download_url = get_download_url(url)
+
         plugin_info = get_modrinth_plugin_info(extract_slug_from_url(url))
         plugin_name = plugin_info["basic_info"]["title"] or plugin_info["basic_info"]["slug"]
+        all_versions = plugin_info["latest_version"]
+        compatible = True
+        reason = ""
+        preferred_loader, preferred_version = None, None
+
+        if server_id:
+            try:
+                preferred_loader, preferred_version = get_server_loader_and_version(server_id)
+                if preferred_loader and preferred_loader not in all_versions["loaders"]:
+                    compatible = False
+                    reason = f"Plugin nepodporuje loader '{preferred_loader}'"
+                elif preferred_version and preferred_version not in all_versions["game_versions"]:
+                    compatible = False
+                    reason = f"Plugin nepodporuje Minecraft verzi '{preferred_version}'"
+            except Exception as e:
+                # Pokud nelze načíst informace o serveru, nehodnotíme kompatibilitu
+                print("[WARN] Nelze zjistit loader a verzi:", e)
+
+        download_url = get_download_url(url, server_id=server_id)
 
         return {
             "success": True,
             "download_url": download_url,
             "plugin_name": plugin_name,
-            "info": plugin_info  # Volitelné – můžeš vynechat, pokud frontend nechce víc dat
+            "info": plugin_info,
+            "compatible": compatible,
+            "reason": reason,
+            "expected_loader": preferred_loader,
+            "expected_version": preferred_version
         }
 
     except Exception as e:
@@ -153,4 +188,6 @@ def handle_web_request(url):
             "success": False,
             "error": str(e)
         }
+
+
 
