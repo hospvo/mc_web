@@ -260,6 +260,12 @@ class ServerCreatorApp:
             command=self.create_server,
             style='Accent.TButton' if 'Accent.TButton' in style.theme_names() else 'TButton'
         ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            btn_frame,
+            text="Sync porty (1 server)",
+            command=self.sync_ports_for_server
+        ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             btn_frame,
@@ -280,6 +286,37 @@ class ServerCreatorApp:
         self.version_dropdown['values'] = versions
         if versions:
             self.version_var.set(versions[0])
+
+    def sync_ports_for_server(self):
+        """Synchronizuje porty jen pro jeden server"""
+        server_name = self.entry_name.get().strip()
+        if not server_name:
+            messagebox.showerror("Chyba", "Nejprve zadejte název serveru.")
+            return
+
+        with self.flask_app.app_context():
+            server = Server.query.filter_by(name=server_name).first()
+            if not server:
+                messagebox.showerror("Chyba", f"Server '{server_name}' nebyl nalezen v databázi.")
+                return
+
+            old_ports = (server.server_port, server.query_port)
+
+            try:
+                update_server_ports(server.id)
+
+                db.session.refresh(server)  # Načteme nové hodnoty z DB
+                new_ports = (server.server_port, server.query_port)
+
+                messagebox.showinfo(
+                    "Hotovo",
+                    f"Porty byly aktualizovány pro server '{server_name}'.\n\n"
+                    f"Staré porty: {old_ports}\n"
+                    f"Nové porty: {new_ports}"
+                )
+            except Exception as e:
+                messagebox.showerror("Chyba", f"Nastala chyba při synchronizaci portů:\n{str(e)}")
+
 
 if __name__ == "__main__":
     from app import app

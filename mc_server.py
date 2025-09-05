@@ -17,7 +17,7 @@ from mcstatus import JavaServer
 
 
 # Base directory where all server folders will be stored
-BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
+BASE_SERVERS_PATH = r"C:\Users\hospv\Documents\minecraft_server"
 BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
 BASE_BUILD_PATH = r"C:\Users\hospv\Documents\minecraft_builds"
 #BASE_SERVERS_PATH = r"D:\\"
@@ -496,10 +496,10 @@ def get_online_players(server_id):
                 print(f"[WARN] Query selhalo na portu {server.query_port}: {e}")
 
         # 2. Ping (TCP) – přes server-port
-        if server.port:
+        if server.server_port:
             try:
                 print(f"[INFO] Pokus o ping na {server_ip}:{server.port}")
-                server_status = JavaServer(server_ip, server.port).status()
+                server_status = JavaServer(server_ip, server.server_port).status()
                 return server_status.players.online
             except Exception as e:
                 print(f"[WARN] Ping selhal na portu {server.port}: {e}")
@@ -540,9 +540,9 @@ def get_online_player_names(server_id):
                 print(f"[WARN] Query selhalo: {e}")
 
         # Status (vzorek)
-        if server.port:
+        if server.server_port:
             try:
-                status = JavaServer(server_ip, server.port).status()
+                status = JavaServer(server_ip, server.server_port).status()
                 return [p.name for p in status.players.sample or []]
             except Exception as e:
                 print(f"[WARN] Ping selhal: {e}")
