@@ -502,11 +502,17 @@ def get_online_player_info(server_id):
         # 2. Status (TCP ping)
         if server.server_port:
             try:
+<<<<<<< Updated upstream
                 status = JavaServer(server_ip, server.server_port).status()
                 return {
                     "count": status.players.online,
                     "names": [p.name for p in (status.players.sample or [])]
                 }
+=======
+                print(f"[INFO] Pokus o ping na {server_ip}:{server.server_port}")
+                server_status = JavaServer(server_ip, server.server_port).status()
+                return server_status.players.online
+>>>>>>> Stashed changes
             except Exception as e:
                 print(f"[WARN] Ping selhal na portu {server.server_port}: {e}")
 

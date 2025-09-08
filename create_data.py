@@ -2,7 +2,11 @@ import os
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import Dict, List, Optional, Tuple
+<<<<<<< Updated upstream
 import miniupnpc
+=======
+import shutil
+>>>>>>> Stashed changes
 from models import db, User, Server, BuildType, BuildVersion
 from server_configs import update_server_ports
 from mc_server import BASE_SERVERS_PATH, BASE_BUILD_PATH
@@ -60,27 +64,83 @@ class ServerCreatorApp:
         return builds
 
     def check_or_create_server_folder(self, server_name: str) -> bool:
-        """Zkontroluje existenci složky serveru"""
+        """Zkontroluje existenci složky serveru, vytvoří podsložky a připraví server jar"""
         folder_path = os.path.join(BASE_SERVERS_PATH, server_name)
+        
         if os.path.exists(folder_path):
             return True
-            
+
         result = messagebox.askyesno(
             "Složka neexistuje", 
             f"Složka pro server '{server_name}' neexistuje.\n\nCesta: {folder_path}\n\nChcete ji vytvořit?",
             icon='question'
         )
+        
         if result:
             try:
+                # vytvoří složky
                 os.makedirs(folder_path, exist_ok=True)
+                mcbackups_path = os.path.join(folder_path, "mcbackups")
+                minecraft_server_path = os.path.join(folder_path, "minecraft-server")
+                os.makedirs(mcbackups_path, exist_ok=True)
+                os.makedirs(minecraft_server_path, exist_ok=True)
+
+                # Flask context pro DB dotazy
+                with self.flask_app.app_context():
+                    existing_server = Server.query.filter_by(name=server_name).first()
+                    # získat budoucí server_id
+                    if existing_server:
+                        future_server_id = existing_server.id
+                    else:
+                        max_server = db.session.query(Server).order_by(Server.id.desc()).first()
+                        future_server_id = (max_server.id + 1) if max_server else 1
+
+                    # vybrat build a verzi podle GUI
+                    build_type = BuildType.query.filter_by(name=self.build_var.get()).first()
+                    build_version = BuildVersion.query.filter_by(
+                        build_type=build_type, 
+                        mc_version=self.version_var.get()
+                    ).first()
+
+                if build_version is None:
+                    messagebox.showerror("Chyba", "Nepodařilo se najít vybraný build verze Minecraftu.")
+                    return False
+
+                # složka s vybranou verzí
+                version_path = os.path.join(
+                    BASE_BUILD_PATH,
+                    build_type.name.upper(),
+                    "versions",
+                    build_version.mc_version
+                )
+
+                # najít první .jar soubor
+                jar_files = [f for f in os.listdir(version_path) if f.endswith(".jar")]
+                if not jar_files:
+                    messagebox.showerror("Chyba", f"V této složce není žádný .jar soubor: {version_path}")
+                    return False
+
+                source_jar = os.path.join(version_path, jar_files[0])  # vezme první .jar
+
+                if not os.path.exists(source_jar):
+                    messagebox.showerror("Chyba", f"Nepodařilo se najít soubor: {source_jar}")
+                    return False
+
+                # cílový jar v minecraft-server
+                target_jar = os.path.join(minecraft_server_path, f"server_{future_server_id}.jar")
+                shutil.copy2(source_jar, target_jar)
+
                 return True
+
             except Exception as e:
                 messagebox.showerror(
                     "Chyba", 
-                    f"Nepodařilo se vytvořit složku:\n{str(e)}"
+                    f"Nepodařilo se vytvořit složky nebo zkopírovat jar:\n{str(e)}"
                 )
                 return False
-        return False
+
+
+
 
     def validate_inputs(self) -> Tuple[bool, Optional[str]]:
         """Validace vstupních dat"""
@@ -287,14 +347,6 @@ class ServerCreatorApp:
         # Bind Enter klávesy
         self.root.bind('<Return>', lambda e: self.create_server())
 
-    def update_versions(self, event=None):
-        """Aktualizuje seznam verzí podle vybraného buildu"""
-        selected_build = self.build_var.get()
-        versions = self.builds.get(selected_build, [])
-        self.version_dropdown['values'] = versions
-        if versions:
-            self.version_var.set(versions[0])
-
     def sync_ports_for_server(self):
         """Synchronizuje porty jen pro jeden server"""
         server_name = self.entry_name.get().strip()
@@ -325,6 +377,7 @@ class ServerCreatorApp:
             except Exception as e:
                 messagebox.showerror("Chyba", f"Nastala chyba při synchronizaci portů:\n{str(e)}")
 
+<<<<<<< Updated upstream
     def open_upnp_ports(server_port: int, query_port: int = None) -> bool:
         """
         Pokusí se automaticky otevřít porty přes UPnP.
@@ -359,6 +412,8 @@ class ServerCreatorApp:
             return False
 
 
+=======
+>>>>>>> Stashed changes
 if __name__ == "__main__":
     from app import app
     from models import db
