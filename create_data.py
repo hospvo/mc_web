@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import Dict, List, Optional, Tuple
+import miniupnpc
 from models import db, User, Server, BuildType, BuildVersion
 from server_configs import update_server_ports
 from mc_server import BASE_SERVERS_PATH, BASE_BUILD_PATH
@@ -149,6 +150,13 @@ class ServerCreatorApp:
 
                 # Aktualizovat porty
                 update_server_ports(server.id)
+                db.session.refresh(server)  # z DB načti nové porty
+
+                # Pokus o otevření portů přes UPnP
+                if open_upnp_ports(server.server_port, server.query_port):
+                    print(f"[INFO] Porty {server.server_port}, {server.query_port} otevřeny přes UPnP")
+                else:
+                    print("[WARN] Porty se nepodařilo otevřít přes UPnP")
                 
                 messagebox.showinfo(
                     "Hotovo", 
@@ -316,6 +324,39 @@ class ServerCreatorApp:
                 )
             except Exception as e:
                 messagebox.showerror("Chyba", f"Nastala chyba při synchronizaci portů:\n{str(e)}")
+
+    def open_upnp_ports(server_port: int, query_port: int = None) -> bool:
+        """
+        Pokusí se automaticky otevřít porty přes UPnP.
+        Vrací True pokud se povedlo, jinak False.
+        """
+        try:
+            upnp = miniupnpc.UPnP()
+            upnp.discoverdelay = 200
+            ndevices = upnp.discover()
+            if ndevices == 0:
+                print("[UPnP] Router nebyl nalezen.")
+                return False
+
+            upnp.selectigd()
+            external_ip = upnp.externalipaddress()
+            print(f"[UPnP] Nalezen router, externí IP: {external_ip}")
+
+            # otevření hlavního server portu (TCP i UDP)
+            upnp.addportmapping(server_port, 'TCP', upnp.lanaddr, server_port, 'Minecraft Server TCP', '')
+            upnp.addportmapping(server_port, 'UDP', upnp.lanaddr, server_port, 'Minecraft Server UDP', '')
+            print(f"[UPnP] Otevřen port {server_port} (TCP/UDP).")
+
+            # pokud máš query port, otevři i ten
+            if query_port and query_port != server_port:
+                upnp.addportmapping(query_port, 'UDP', upnp.lanaddr, query_port, 'Minecraft Query UDP', '')
+                print(f"[UPnP] Otevřen query port {query_port} (UDP).")
+
+            return True
+
+        except Exception as e:
+            print(f"[UPnP] Nepodařilo se otevřít porty: {e}")
+            return False
 
 
 if __name__ == "__main__":

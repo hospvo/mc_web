@@ -17,7 +17,7 @@ from mcstatus import JavaServer
 
 
 # Base directory where all server folders will be stored
-BASE_SERVERS_PATH = r"C:\Users\hospv\Documents\minecraft_server"
+BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
 BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
 BASE_BUILD_PATH = r"C:\Users\hospv\Documents\minecraft_builds"
 #BASE_SERVERS_PATH = r"D:\\"
@@ -475,36 +475,42 @@ def get_server_status(server_id):
     }
 
 
-def get_online_players(server_id):
-    """Získání počtu online hráčů – upřednostňuje query, pak ping, pak diagnostiku."""
+def get_online_player_info(server_id):
+    """
+    Vrátí informace o hráčích online (počet + seznam jmen).
+    Upřednostňuje query, pak ping, pak diagnostiku.
+    """
     try:
-        # 0. Načtení serveru z databáze
         server = Server.query.get(server_id)
         if not server:
             print(f"[WARN] Server {server_id} nebyl nalezen v databázi.")
-            return 0
+            return {"count": 0, "names": []}
 
         server_ip = "localhost"
-        
-        # 1. Query (UDP) – pokud je aktivní
+
+        # 1. Query (UDP)
         if server.query_port:
             try:
-                print(f"[INFO] Pokus o query na {server_ip}:{server.query_port}")
-                server_query = JavaServer(server_ip, server.query_port).query()
-                return server_query.players.online
+                query = JavaServer(server_ip, server.query_port).query()
+                return {
+                    "count": query.players.online,
+                    "names": query.players.names or []
+                }
             except Exception as e:
                 print(f"[WARN] Query selhalo na portu {server.query_port}: {e}")
 
-        # 2. Ping (TCP) – přes server-port
+        # 2. Status (TCP ping)
         if server.server_port:
             try:
-                print(f"[INFO] Pokus o ping na {server_ip}:{server.port}")
-                server_status = JavaServer(server_ip, server.server_port).status()
-                return server_status.players.online
+                status = JavaServer(server_ip, server.server_port).status()
+                return {
+                    "count": status.players.online,
+                    "names": [p.name for p in (status.players.sample or [])]
+                }
             except Exception as e:
-                print(f"[WARN] Ping selhal na portu {server.port}: {e}")
+                print(f"[WARN] Ping selhal na portu {server.server_port}: {e}")
 
-        # 3. Diagnostický HTTP endpoint – pokud je nastaven
+        # 3. Diagnostický endpoint (HTTP)
         if server.diagnostic_server_port:
             try:
                 url = f"http://localhost:{server.diagnostic_server_port}/players"
@@ -512,45 +518,25 @@ def get_online_players(server_id):
                 response = requests.get(url, timeout=3)
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get('online_players', 0)
+                    return {
+                        "count": data.get("online_players", 0),
+                        "names": data.get("player_names", [])
+                    }
             except requests.exceptions.RequestException as e:
                 print(f"[WARN] Chyba při dotazu na diagnostický port: {e}")
 
-        return 0
+        return {"count": 0, "names": []}
 
     except Exception as e:
         print(f"[ERROR] Neočekávaná chyba při získávání hráčů pro server {server_id}: {e}")
-        return 0
-    
+        return {"count": 0, "names": []}
+
+#these two from old methods
+def get_online_players(server_id):
+    return get_online_player_info(server_id)["count"]
+
 def get_online_player_names(server_id):
-    """Vrátí seznam jmen hráčů online (preferuje query, fallback na status)."""
-    try:
-        server = Server.query.get(server_id)
-        if not server:
-            return []
-
-        server_ip = "localhost"
-
-        # Query (přes UDP)
-        if server.query_port:
-            try:
-                query = JavaServer(server_ip, server.query_port).query()
-                return query.players.names
-            except Exception as e:
-                print(f"[WARN] Query selhalo: {e}")
-
-        # Status (vzorek)
-        if server.server_port:
-            try:
-                status = JavaServer(server_ip, server.server_port).status()
-                return [p.name for p in status.players.sample or []]
-            except Exception as e:
-                print(f"[WARN] Ping selhal: {e}")
-
-        return []
-    except Exception as e:
-        print(f"[ERROR] Neočekávaná chyba při získávání jmen hráčů: {e}")
-        return []
+    return get_online_player_info(server_id)["names"]
 
 
 def get_backups(server_id):
@@ -883,8 +869,15 @@ def server_status_api():
         return jsonify({'error': 'Missing server_id'}), 400
     
     status = get_server_status(server_id)
-    status['players'] = get_online_players(server_id)
-    status['player_names'] = get_online_player_names(server_id)  # ⬅ přidáno
+
+    if status['status'] == 'running':
+        player_info = get_online_player_info(server_id)
+        status['players'] = player_info["count"]
+        status['player_names'] = player_info["names"]
+    else:
+        status['players'] = 0
+        status['player_names'] = []
+    
     return jsonify(status)
 
 
