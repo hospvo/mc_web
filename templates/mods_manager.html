@@ -1,0 +1,112 @@
+<!-- [file name]: mods_manager.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mods_manager.css') }}">
+
+<div class="mods-manager-container">
+    <div class="mods-header">
+        <button id="back-to-server-btn" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Zpět na server
+        </button>
+        <h2><i class="fas fa-puzzle-piece"></i> Správa modů: <span id="server-name-mods">{{ server.name }}</span></h2>
+    </div>
+
+    <div class="mods-tabs">
+        <button class="tab-btn active" data-tab="installed">Nainstalované mody</button>
+        <button class="tab-btn" data-tab="available">Dostupné mody</button>
+        <button class="tab-btn" data-tab="updates">Dostupné aktualizace</button>
+        <button class="tab-btn" data-tab="manual">Manuální instalace</button>
+    </div>
+
+    <div class="mods-search-box" id="search-box">
+        <input type="text" id="mods-search-input" placeholder="Hledat mody...">
+        <select id="mods-filter-category">
+            <option value="all">Všechny kategorie</option>
+            <option value="core">Základní mody</option>
+            <option value="optional">Volitelné mody</option>
+            <option value="performance">Optimalizace</option>
+            <option value="content">Obsah</option>
+        </select>
+    </div>
+
+    <div id="installed-mods" class="tab-content active">
+        <div class="mods-list-header">
+            <span>Název</span>
+            <span>Verze</span>
+            <span>Stav</span>
+            <span>Akce</span>
+        </div>
+        <div id="installed-mods-list" class="mods-list">
+            <!-- Načte se dynamicky -->
+        </div>
+    </div>
+
+    <div id="available-mods" class="tab-content">
+        <div class="mods-list-header">
+            <span>Název</span>
+            <span>Verze</span>
+            <span>Popis</span>
+            <span>Akce</span>
+        </div>
+        <div id="available-mods-list" class="mods-list">
+            <!-- Načte se dynamicky -->
+        </div>
+    </div>
+
+    <div id="updates-mods" class="tab-content">
+        <div class="mods-list-header">
+            <span>Název</span>
+            <span>Aktuální verze</span>
+            <span>Nová verze</span>
+            <span>Akce</span>
+        </div>
+        <div id="updates-mods-list" class="mods-list">
+            <!-- Načte se dynamicky -->
+        </div>
+    </div>
+
+<div id="manual-mods" class="tab-content">
+    <div class="mod-manual-download">
+        <h3 class="mod-source-heading">
+            <img src="{{ url_for('static', filename='img/modrinth_logos.jpeg') }}" 
+                alt="Modrinth Logo" class="modrinth-logo">
+            <span>Modrinth Mod Installer</span>
+        </h3>
+        <p>Zadejte URL modu z Modrinth pro jeho stažení a instalaci:</p>
+        
+        <div class="manual-download-form">                
+            <div class="form-group">
+                <label for="mod-url-input">URL modu z Modrinth</label>
+                <input type="text" id="mod-url-input" class="form-control" 
+                       placeholder="https://modrinth.com/mod/nazev-modu">
+            </div>
+            
+            <button id="get-download-link-btn" class="btn btn-primary">
+                <i class="fas fa-link"></i> Získat download link
+            </button>
+            
+            <div id="result-display" class="result-display">
+                <div class="result-content"></div>
+                <div class="result-actions">
+                    <button id="install-from-url-btn" class="btn btn-success">
+                        <i class="fas fa-download"></i> Nainstalovat mod
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <div class="mods-status-bar">
+        <span id="mods-status-message">Připraveno</span>
+        <div class="mods-stats">
+            <span><i class="fas fa-cube"></i> <span id="mods-count">0</span> modů</span>
+            <span><i class="fas fa-download"></i> <span id="updates-count">0</span> aktualizací</span>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/mods_manager.js') }}"></script>
+{% endblock %}

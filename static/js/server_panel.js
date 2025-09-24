@@ -529,3 +529,73 @@ document.getElementById('manage-plugins-btn').addEventListener('click', () => {
 
 // Načtěte pluginy při startu
 document.addEventListener('DOMContentLoaded', loadQuickViewPlugins);
+
+
+async function loadInstalledModsQuickview() {
+    try {
+        const response = await fetch(`/api/mods/installed?server_id=${getCurrentServerId()}`);
+        const mods = await response.json();
+        
+        const list = document.getElementById('installed-mods-quickview');
+        list.innerHTML = '';
+        
+        if (mods.length === 0) {
+            list.innerHTML = `
+                <div class="no-mods">
+                    <i class="fas fa-box-open"></i>
+                    <p>Žádné mody nenalezeny</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Zobrazíme pouze prvních 5 modů pro rychlý náhled
+        const displayMods = mods.slice(0, 5);
+        
+        displayMods.forEach(mod => {
+            const modItem = document.createElement('div');
+            modItem.className = 'quickview-mod-item';
+            modItem.innerHTML = `
+                <span class="quickview-mod-name">${mod.display_name || mod.name}</span>
+                <span class="quickview-mod-version">${mod.version}</span>
+            `;
+            list.appendChild(modItem);
+        });
+        
+        // Pokud je více než 5 modů, zobrazíme indikátor
+        if (mods.length > 5) {
+            const moreItem = document.createElement('div');
+            moreItem.className = 'quickview-mod-item';
+            moreItem.innerHTML = `
+                <span class="quickview-mod-name">+ ${mods.length - 5} dalších modů</span>
+                <span class="quickview-mod-version">...</span>
+            `;
+            moreItem.style.opacity = '0.7';
+            moreItem.style.fontStyle = 'italic';
+            list.appendChild(moreItem);
+        }
+        
+    } catch (error) {
+        console.error('Chyba při načítání modů:', error);
+        const list = document.getElementById('installed-mods-quickview');
+        list.innerHTML = `
+            <div class="no-mods">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Chyba při načítání modů</p>
+            </div>
+        `;
+    }
+}
+
+// Přidání event listeneru pro tlačítko správy modů
+document.addEventListener('DOMContentLoaded', function() {
+    const manageModsBtn = document.getElementById('manage-mods-btn');
+    if (manageModsBtn) {
+        manageModsBtn.addEventListener('click', () => {
+            window.location.href = `/server/${getCurrentServerId()}/mods`;
+        });
+    }
+    
+    // Načtení modů při inicializaci
+    loadInstalledModsQuickview();
+});

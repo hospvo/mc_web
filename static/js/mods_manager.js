@@ -1,18 +1,19 @@
+// [file name]: mods_manager.js
 // Globální proměnné
 let currentServerId;
 let currentTab = 'installed';
 
 // Inicializace po načtení stránky
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     currentServerId = getCurrentServerId();
     setupEventListeners();
-    loadInstalledPlugins();
+    loadInstalledMods();
 });
 
 function getCurrentServerId() {
     const pathParts = window.location.pathname.split('/');
-    // URL je ve formátu /server/123/plugins
-    return pathParts[2]; // Vrátí část mezi 'server' a 'plugins'
+    // URL je ve formátu /server/123/mods
+    return pathParts[2]; // Vrátí část mezi 'server' a 'mods'
 }
 
 function setupEventListeners() {
@@ -22,7 +23,7 @@ function setupEventListeners() {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
             btn.classList.add('active');
-            document.getElementById(btn.dataset.tab + '-plugins').classList.add('active');
+            document.getElementById(btn.dataset.tab + '-mods').classList.add('active');
             currentTab = btn.dataset.tab;
 
             // OPRAVENÁ ČÁST - správa zobrazení vyhledávače
@@ -33,12 +34,12 @@ function setupEventListeners() {
                 searchBox.style.display = 'none';
             }
 
-            switch(currentTab) {
+            switch (currentTab) {
                 case 'installed':
-                    loadInstalledPlugins();
+                    loadInstalledMods();
                     break;
                 case 'available':
-                    loadAvailablePlugins();
+                    loadAvailableMods();
                     break;
                 case 'updates':
                     checkForUpdates();
@@ -50,20 +51,20 @@ function setupEventListeners() {
         });
     });
 
-    document.getElementById('plugins-search-input').addEventListener('input', debounce(() => {
-        if(currentTab === 'installed') loadInstalledPlugins();
-        else if(currentTab === 'available') loadAvailablePlugins();
+    document.getElementById('mods-search-input').addEventListener('input', debounce(() => {
+        if (currentTab === 'installed') loadInstalledMods();
+        else if (currentTab === 'available') loadAvailableMods();
     }, 300));
 
-    document.getElementById('plugins-filter-category').addEventListener('change', () => {
-        if(currentTab === 'available') loadAvailablePlugins();
+    document.getElementById('mods-filter-category').addEventListener('change', () => {
+        if (currentTab === 'available') loadAvailableMods();
     });
 
     document.getElementById('back-to-server-btn').addEventListener('click', () => {
         window.location.href = `/server/${currentServerId}`;
     });
 
-    // Přidáno: tlačítka pro manuální zadání pluginu
+    // Přidáno: tlačítka pro manuální zadání modu
     const manualBtn = document.getElementById('get-download-link-btn');
     if (manualBtn) manualBtn.addEventListener('click', handleManualDownload);
 
@@ -73,146 +74,146 @@ function setupEventListeners() {
 
 function debounce(func, wait) {
     let timeout;
-    return function() {
+    return function () {
         const context = this, args = arguments;
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(context, args), wait);
     };
 }
 
-async function loadInstalledPlugins() {
+async function loadInstalledMods() {
     try {
-        const response = await fetch(`/api/plugins/installed?server_id=${currentServerId}`);
-        const plugins = await response.json();
-        
-        const searchTerm = document.getElementById('plugins-search-input').value.toLowerCase();
-        const filteredPlugins = plugins.filter(p => 
-            p.name.toLowerCase().includes(searchTerm) || 
+        const response = await fetch(`/api/mods/installed?server_id=${currentServerId}`);
+        const mods = await response.json();
+
+        const searchTerm = document.getElementById('mods-search-input').value.toLowerCase();
+        const filteredMods = mods.filter(p =>
+            p.name.toLowerCase().includes(searchTerm) ||
             (p.display_name && p.display_name.toLowerCase().includes(searchTerm))
         );
-        
-        const list = document.getElementById('installed-plugins-list');
+
+        const list = document.getElementById('installed-mods-list');
         list.innerHTML = '';
-        
-        if (filteredPlugins.length === 0) {
-            list.innerHTML = '<div class="plugin-item no-plugins">Žádné pluginy nenalezeny</div>';
+
+        if (filteredMods.length === 0) {
+            list.innerHTML = '<div class="mod-item no-mods">Žádné mody nenalezeny</div>';
             return;
         }
-        
-        filteredPlugins.forEach(plugin => {
-            const pluginItem = document.createElement('div');
-            pluginItem.className = 'plugin-item';
-            pluginItem.innerHTML = `
-                <div class="plugin-name">${plugin.display_name || plugin.name}</div>
-                <div class="plugin-version">${plugin.version}</div>
-                <div class="plugin-status">${plugin.is_active ? 'Aktivní' : 'Neaktivní'}</div>
-                <div class="plugin-actions">
-                    <button class="plugin-btn uninstall" data-plugin-id="${plugin.id}">
+
+        filteredMods.forEach(mod => {
+            const modItem = document.createElement('div');
+            modItem.className = 'mod-item';
+            modItem.innerHTML = `
+                <div class="mod-name">${mod.display_name || mod.name}</div>
+                <div class="mod-version">${mod.version}</div>
+                <div class="mod-status">${mod.is_active ? 'Aktivní' : 'Neaktivní'}</div>
+                <div class="mod-actions">
+                    <button class="mod-btn uninstall" data-mod-id="${mod.id}">
                         <i class="fas fa-trash"></i> Odinstalovat
                     </button>
                 </div>
             `;
-            list.appendChild(pluginItem);
+            list.appendChild(modItem);
         });
-        
+
         // Přidání event listenerů pro tlačítka
-        document.querySelectorAll('.plugin-btn.uninstall').forEach(btn => {
-            btn.addEventListener('click', () => uninstallPlugin(btn.dataset.pluginId));
+        document.querySelectorAll('.mod-btn.uninstall').forEach(btn => {
+            btn.addEventListener('click', () => uninstallMod(btn.dataset.modId));
         });
-        
-        updatePluginsCount(plugins.length, 0);
+
+        updateModsCount(mods.length, 0);
     } catch (error) {
-        showError('Chyba při načítání pluginů: ' + error.message);
+        showError('Chyba při načítání modů: ' + error.message);
     }
 }
 
-async function loadAvailablePlugins() {
+async function loadAvailableMods() {
     try {
-        const searchTerm = document.getElementById('plugins-search-input').value.toLowerCase();
-        const category = document.getElementById('plugins-filter-category').value;
-        
-        const response = await fetch(`/api/plugins/available?search=${searchTerm}&category=${category}`);
-        const plugins = await response.json();
-        
-        // Získat nainstalované pluginy pro kontrolu
-        const installedResponse = await fetch(`/api/plugins/installed?server_id=${currentServerId}`);
-        const installedPlugins = await installedResponse.json();
-        const installedIds = installedPlugins.map(p => p.id);
-        
-        const list = document.getElementById('available-plugins-list');
+        const searchTerm = document.getElementById('mods-search-input').value.toLowerCase();
+        const category = document.getElementById('mods-filter-category').value;
+
+        const response = await fetch(`/api/mods/available?search=${searchTerm}&category=${category}`);
+        const mods = await response.json();
+
+        // Získat nainstalované mody pro kontrolu
+        const installedResponse = await fetch(`/api/mods/installed?server_id=${currentServerId}`);
+        const installedMods = await installedResponse.json();
+        const installedIds = installedMods.map(p => p.id);
+
+        const list = document.getElementById('available-mods-list');
         list.innerHTML = '';
-        
-        if (plugins.length === 0) {
-            list.innerHTML = '<div class="plugin-item no-plugins">Žádné pluginy nenalezeny</div>';
+
+        if (mods.length === 0) {
+            list.innerHTML = '<div class="mod-item no-mods">Žádné mody nenalezeny</div>';
             return;
         }
-        
-        plugins.forEach(plugin => {
-            const isInstalled = installedIds.includes(plugin.id);
-            
-            const pluginItem = document.createElement('div');
-            pluginItem.className = 'plugin-item';
-            pluginItem.innerHTML = `
-                <div class="plugin-name">${plugin.display_name || plugin.name}</div>
-                <div class="plugin-version">${plugin.version}</div>
-                <div class="plugin-description">${plugin.description || 'Žádný popis'}</div>
-                <div class="plugin-actions">
-                    ${isInstalled ? 
-                        '<span class="already-installed">Nainstalováno</span>' : 
-                        `<button class="plugin-btn install" data-plugin-id="${plugin.id}">
+
+        mods.forEach(mod => {
+            const isInstalled = installedIds.includes(mod.id);
+
+            const modItem = document.createElement('div');
+            modItem.className = 'mod-item';
+            modItem.innerHTML = `
+                <div class="mod-name">${mod.display_name || mod.name}</div>
+                <div class="mod-version">${mod.version}</div>
+                <div class="mod-description">${mod.description || 'Žádný popis'}</div>
+                <div class="mod-actions">
+                    ${isInstalled ?
+                    '<span class="already-installed">Nainstalováno</span>' :
+                    `<button class="mod-btn install" data-mod-id="${mod.id}">
                             <i class="fas fa-download"></i> Nainstalovat
                         </button>`
-                    }
+                }
                 </div>
             `;
-            list.appendChild(pluginItem);
+            list.appendChild(modItem);
         });
-        
+
         // Přidání event listenerů pro tlačítka
-        document.querySelectorAll('.plugin-btn.install').forEach(btn => {
-            btn.addEventListener('click', () => installPlugin(btn.dataset.pluginId));
+        document.querySelectorAll('.mod-btn.install').forEach(btn => {
+            btn.addEventListener('click', () => installMod(btn.dataset.modId));
         });
-        
-        updatePluginsCount(installedPlugins.length, plugins.length);
+
+        updateModsCount(installedMods.length, mods.length);
     } catch (error) {
-        showError('Chyba při načítání dostupných pluginů: ' + error.message);
+        showError('Chyba při načítání dostupných modů: ' + error.message);
     }
 }
 
 async function checkForUpdates() {
     try {
         showStatus('Kontroluji aktualizace...');
-        
-        const response = await fetch(`/api/plugins/check-updates?server_id=${currentServerId}`);
-        
+
+        const response = await fetch(`/api/mods/check-updates?server_id=${currentServerId}`);
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const updates = await response.json();
-        
-        const list = document.getElementById('updates-plugins-list');
+
+        const list = document.getElementById('updates-mods-list');
         list.innerHTML = '';
-        
+
         if (updates.length === 0) {
             list.innerHTML = `
-                <div class="plugin-item no-updates">
+                <div class="mod-item no-updates">
                     <i class="fas fa-check-circle" style="color: #4CAF50; font-size: 2rem; margin-bottom: 1rem;"></i>
-                    <h4>Všechny pluginy jsou aktuální!</h4>
+                    <h4>Všechny mody jsou aktuální!</h4>
                     <p>Žádné dostupné aktualizace nebyly nalezeny.</p>
                 </div>
             `;
-            updatePluginsCount(0, 0);
+            updateModsCount(0, 0);
             showSuccess('Kontrola aktualizací dokončena');
             return;
         }
-        
+
         updates.forEach(update => {
-            const pluginItem = document.createElement('div');
-            pluginItem.className = 'plugin-item update-available';
-            pluginItem.innerHTML = `
-                <div class="plugin-info">
-                    <div class="plugin-name">${escapeHtml(update.name)}</div>
+            const modItem = document.createElement('div');
+            modItem.className = 'mod-item update-available';
+            modItem.innerHTML = `
+                <div class="mod-info">
+                    <div class="mod-name">${escapeHtml(update.name)}</div>
                     <div class="version-comparison">
                         <span class="current-version">${escapeHtml(update.current_version)}</span>
                         <i class="fas fa-arrow-right"></i>
@@ -225,45 +226,45 @@ async function checkForUpdates() {
                         </div>
                     ` : ''}
                 </div>
-                <div class="plugin-actions">
-                    <button class="plugin-btn update" data-plugin-id="${update.plugin_id}">
+                <div class="mod-actions">
+                    <button class="mod-btn update" data-mod-id="${update.mod_id}">
                         <i class="fas fa-sync-alt"></i> Aktualizovat
                     </button>
                 </div>
             `;
-            list.appendChild(pluginItem);
+            list.appendChild(modItem);
         });
-        
+
         // Přidání event listenerů pro tlačítka
-        document.querySelectorAll('.plugin-btn.update').forEach(btn => {
-            btn.addEventListener('click', () => updatePlugin(btn.dataset.pluginId));
+        document.querySelectorAll('.mod-btn.update').forEach(btn => {
+            btn.addEventListener('click', () => updateMod(btn.dataset.modId));
         });
-        
-        updatePluginsCount(0, updates.length);
+
+        updateModsCount(0, updates.length);
         showSuccess(`Nalezeno ${updates.length} aktualizací`);
-        
+
     } catch (error) {
         console.error('Chyba při kontrole aktualizací:', error);
         showError('Chyba při kontrole aktualizací: ' + error.message);
     }
 }
 
-async function installPlugin(pluginId) {
-    if (!confirm('Opravdu chcete nainstalovat tento plugin?')) return;
-    
+async function installMod(modId) {
+    if (!confirm('Opravdu chcete nainstalovat tento mod?')) return;
+
     try {
-        const response = await fetch(`/api/plugins/install?server_id=${currentServerId}`, {
+        const response = await fetch(`/api/mods/install?server_id=${currentServerId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plugin_id: pluginId })
+            body: JSON.stringify({ mod_id: modId })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
-            showSuccess('Plugin byl úspěšně nainstalován. Restartujte server pro aplikování změn.');
-            loadAvailablePlugins();
-            loadInstalledPlugins();
+            showSuccess('Mod byl úspěšně nainstalován. Restartujte server pro aplikování změn.');
+            loadAvailableMods();
+            loadInstalledMods();
         } else {
             showError(result.error || 'Neznámá chyba při instalaci');
         }
@@ -272,22 +273,22 @@ async function installPlugin(pluginId) {
     }
 }
 
-async function uninstallPlugin(pluginId) {
-    if (!confirm('Opravdu chcete odinstalovat tento plugin?')) return;
-    
+async function uninstallMod(modId) {
+    if (!confirm('Opravdu chcete odinstalovat tento mod?')) return;
+
     try {
-        const response = await fetch(`/api/plugins/uninstall?server_id=${currentServerId}`, {
+        const response = await fetch(`/api/mods/uninstall?server_id=${currentServerId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plugin_id: pluginId })
+            body: JSON.stringify({ mod_id: modId })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
-            showSuccess('Plugin byl úspěšně odinstalován. Restartujte server pro aplikování změn.');
-            loadInstalledPlugins();
-            loadAvailablePlugins();
+            showSuccess('Mod byl úspěšně odinstalován. Restartujte server pro aplikování změn.');
+            loadInstalledMods();
+            loadAvailableMods();
         } else {
             showError(result.error || 'Neznámá chyba při odinstalaci');
         }
@@ -296,27 +297,27 @@ async function uninstallPlugin(pluginId) {
     }
 }
 
-async function updatePlugin(pluginId) {
-    if (!confirm('Opravdu chcete aktualizovat tento plugin?')) return;
-    
+async function updateMod(modId) {
+    if (!confirm('Opravdu chcete aktualizovat tento mod?')) return;
+
     try {
         // Zde byste volali API pro aktualizaci
         // Toto je pouze příklad
-        showSuccess('Plugin byl úspěšně aktualizován. Restartujte server pro aplikování změn.');
+        showSuccess('Mod byl úspěšně aktualizován. Restartujte server pro aplikování změn.');
         checkForUpdates();
-        loadInstalledPlugins();
+        loadInstalledMods();
     } catch (error) {
         showError('Chyba při aktualizaci: ' + error.message);
     }
 }
 
-function updatePluginsCount(installedCount, updatesCount) {
-    document.getElementById('plugins-count').textContent = installedCount;
+function updateModsCount(installedCount, updatesCount) {
+    document.getElementById('mods-count').textContent = installedCount;
     document.getElementById('updates-count').textContent = updatesCount;
 }
 
 function showSuccess(message) {
-    const statusBar = document.getElementById('plugins-status-message');
+    const statusBar = document.getElementById('mods-status-message');
     statusBar.textContent = message;
     statusBar.style.color = '#48bb78';
     setTimeout(() => {
@@ -326,14 +327,14 @@ function showSuccess(message) {
 }
 
 function showError(message) {
-    const statusBar = document.getElementById('plugins-status-message');
+    const statusBar = document.getElementById('mods-status-message');
     statusBar.textContent = message;
     statusBar.style.color = '#f56565';
 }
 
 
 async function handleManualDownload() {
-    const url = document.getElementById('plugin-url-input').value.trim();
+    const url = document.getElementById('mod-url-input').value.trim();
     const resultDiv = document.getElementById('result-display');
     const resultContent = resultDiv.querySelector('.result-content');
     const installBtn = document.getElementById('install-from-url-btn');
@@ -341,15 +342,17 @@ async function handleManualDownload() {
     resultDiv.style.display = 'none';
     installBtn.style.display = 'none';
     resultContent.innerHTML = '';
-    showStatus('Získávám informace o pluginu...');
+    showStatus('Získávám informace o modu...');
 
     if (!url) {
-        showError('Prosím zadejte URL pluginu z Modrinth');
+        showError('Prosím zadejte URL modu z Modrinth');
         return;
     }
 
+
+
     try {
-        const response = await fetch('/api/plugins/get-download-info', {
+        const response = await fetch('/api/mods/get-download-info', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -359,15 +362,17 @@ async function handleManualDownload() {
         });
 
         const result = await response.json();
-        if (!result.success) throw new Error(result.error || 'Chyba při zpracování pluginu.');
+        if (!result.success) throw new Error(result.error || 'Chyba při zpracování modu.');
 
-        const { plugin_name, download_url, info, compatible, reason } = result;
+        const { mod_name, download_url, info, compatible, reason, warning } = result;
         const loaders = (info.latest_version?.loaders || []).join(', ');
         const versions = (info.latest_version?.game_versions || []).join(', ');
 
+
+
         let html = `
-            <p class="success-message"><i class="fas fa-check-circle"></i> Plugin nalezen</p>
-            <p><strong>Plugin:</strong> ${escapeHtml(plugin_name)}</p>
+            <p class="success-message"><i class="fas fa-check-circle"></i> Mod nalezen</p>
+            <p><strong>Mod:</strong> ${escapeHtml(mod_name)}</p>
             <p><strong>Kompatibilita:</strong></p>
             <ul>
                 <li><strong>Loadery:</strong> ${escapeHtml(loaders || 'Neznámo')}</li>
@@ -376,12 +381,18 @@ async function handleManualDownload() {
         `;
 
         if (!compatible) {
-            html += `<p class="error-message"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(reason || 'Plugin není kompatibilní se serverem')}</p>
+            html += `<p class="error-message"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(reason || 'Mod není kompatibilní se serverem')}</p>
                      <button onclick="installFromUrl(true)" class="force-install-btn">
                         <i class="fas fa-exclamation-circle"></i> Přesto nainstalovat
                      </button>`;
         } else {
             installBtn.style.display = 'inline-block';
+        }
+
+        if (warning) {
+            html += `<p class="error-message">
+                <i class="fas fa-exclamation-triangle"></i> ${escapeHtml(warning)}
+            </p>`;
         }
 
         html += `
@@ -395,10 +406,10 @@ async function handleManualDownload() {
         resultContent.innerHTML = html;
         resultDiv.dataset.url = url;
         resultDiv.dataset.downloadUrl = download_url;
-        resultDiv.dataset.pluginName = plugin_name;
+        resultDiv.dataset.modName = mod_name;
         resultDiv.style.display = 'block';
 
-        showSuccess('Informace o pluginu načteny');
+        showSuccess('Informace o modu načteny');
     } catch (err) {
         console.error('Chyba při zpracování URL:', err);
         resultContent.innerHTML = `<p class="error-message"><i class="fas fa-exclamation-circle"></i> ${escapeHtml(err.message)}</p>`;
@@ -412,7 +423,7 @@ async function installFromUrl(force = false) {
     const resultDiv = document.getElementById('result-display');
     const url = resultDiv.dataset.url;
     const downloadUrl = resultDiv.dataset.downloadUrl;
-    const pluginName = resultDiv.dataset.pluginName || 'Manuálně přidaný plugin';
+    const modName = resultDiv.dataset.modName || 'Manuálně přidaný mod';
     const serverId = currentServerId;
 
     if (!url || !downloadUrl || !serverId) {
@@ -421,9 +432,9 @@ async function installFromUrl(force = false) {
     }
 
     try {
-        showStatus('Instaluji plugin...');
+        showStatus('Instaluji mod...');
 
-        const response = await fetch(`/api/plugins/install-from-url`, {
+        const response = await fetch(`/api/mods/install-from-url`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -433,7 +444,7 @@ async function installFromUrl(force = false) {
                 url,
                 download_url: downloadUrl,
                 server_id: serverId,
-                plugin_name: pluginName,
+                mod_name: modName,
                 force_install: force
             })
         });
@@ -441,8 +452,8 @@ async function installFromUrl(force = false) {
         const result = await response.json();
 
         if (!response.ok) {
-            if (result.plugin_exists) {
-                showPluginExistsError(result.plugin_name, result.plugin_id);
+            if (result.mod_exists) {
+                showModExistsError(result.mod_name, result.mod_id);
             } else {
                 throw new Error(result.error || 'Neznámá chyba při instalaci');
             }
@@ -450,9 +461,9 @@ async function installFromUrl(force = false) {
         }
 
         // ✅ ZOBRAZENÍ ÚSPĚŠNÉ INSTALACE
-        showInstallationSuccess(pluginName);
-        loadInstalledPlugins();
-        
+        showInstallationSuccess(modName);
+        loadInstalledMods();
+
     } catch (err) {
         console.error('Instalace selhala:', err);
         showError('Chyba při instalaci: ' + (err.message || 'Neznámá chyba'));
@@ -460,18 +471,18 @@ async function installFromUrl(force = false) {
 }
 
 // ✅ NOVÁ FUNKCE: Zobrazení úspěšné instalace
-function showInstallationSuccess(pluginName) {
+function showInstallationSuccess(modName) {
     const resultDiv = document.getElementById('result-display');
     const resultContent = resultDiv.querySelector('.result-content');
-    
+
     resultContent.innerHTML = `
         <div class="installation-success">
             <div class="success-icon">
                 <i class="fas fa-check-circle"></i>
             </div>
             <div class="success-content">
-                <h4>Plugin úspěšně nainstalován!</h4>
-                <p><strong>${escapeHtml(pluginName)}</strong> byl úspěšně nainstalován na server.</p>
+                <h4>Mod úspěšně nainstalován!</h4>
+                <p><strong>${escapeHtml(modName)}</strong> byl úspěšně nainstalován na server.</p>
                 <div class="success-actions">
                     <button onclick="location.reload()" class="refresh-btn">
                         <i class="fas fa-sync"></i> Obnovit stránku
@@ -480,29 +491,29 @@ function showInstallationSuccess(pluginName) {
             </div>
         </div>
     `;
-    
+
     resultDiv.style.display = 'block';
-    showSuccess(`Plugin "${pluginName}" byl úspěšně nainstalován`);
+    showSuccess(`Mod "${modName}" byl úspěšně nainstalován`);
 }
 
 
-// ✅ VYLEPŠENÁ FUNKCE: Zobrazení existujícího pluginu
-function showPluginExistsError(pluginName, pluginId) {
+// ✅ VYLEPŠENÁ FUNKCE: Zobrazení existujícího modu
+function showModExistsError(modName, modId) {
     const resultDiv = document.getElementById('result-display');
     const resultContent = resultDiv.querySelector('.result-content');
-    
+
     resultContent.innerHTML = `
-        <div class="plugin-exists-warning">
+        <div class="mod-exists-warning">
             <div class="warning-icon">
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
             <div class="warning-content">
-                <h4>Plugin již existuje</h4>
-                <p><strong>${escapeHtml(pluginName)}</strong> je již nainstalován v systému.</p>
+                <h4>Mod již existuje</h4>
+                <p><strong>${escapeHtml(modName)}</strong> je již nainstalován v systému.</p>
                 <p class="warning-note">
                     <i class="fas fa-info-circle"></i>
-                    Tento plugin nelze znovu nainstalovat. Pokud chcete aktualizovat na novější verzi, 
-                    použijte funkci aktualizace v sekci "Nainstalované pluginy".
+                    Tento mod nelze znovu nainstalovat. Pokud chcete aktualizovat na novější verzi, 
+                    použijte funkci aktualizace v sekci "Nainstalované mody".
                 </p>
                 <div class="warning-actions">
                     <button onclick="switchToInstalledTab()" class="switch-tab-btn">
@@ -512,40 +523,40 @@ function showPluginExistsError(pluginName, pluginId) {
             </div>
         </div>
     `;
-    
+
     resultDiv.style.display = 'block';
-    showWarning('Plugin již existuje v systému');
+    showWarning('Mod již existuje v systému');
 }
 
-// ✅ POMOCNÁ FUNKCE: Přepnutí na záložku nainstalovaných pluginů
+// ✅ POMOCNÁ FUNKCE: Přepnutí na záložku nainstalovaných modů
 function switchToInstalledTab() {
     document.querySelector('[data-tab="installed"]').click();
 }
 
 // Funkce pro možnost přesto nainstalovat
-function showInstallAnywayPrompt(pluginId, pluginName) {
-    if (confirm(`Opravdu chcete přesto nainstalovat plugin "${pluginName}"?`)) {
-        // Volání speciálního endpointu pro přepsání existujícího pluginu
-        forceInstallPlugin(pluginId);
+function showInstallAnywayPrompt(modId, modName) {
+    if (confirm(`Opravdu chcete přesto nainstalovat mod "${modName}"?`)) {
+        // Volání speciálního endpointu pro přepsání existujícího modu
+        forceInstallMod(modId);
     }
 }
 // Helper functions
 function isValidCustomUrl(url) {
     try {
         const urlObj = new URL(url);
-        return urlObj.protocol.match(/^https?:$/) && 
-               urlObj.pathname.match(/\.jar($|\?)/);
+        return urlObj.protocol.match(/^https?:$/) &&
+            urlObj.pathname.match(/\.jar($|\?)/);
     } catch {
         return false;
     }
 }
 
-function extractPluginNameFromUrl(url) {
+function extractModNameFromUrl(url) {
     try {
         const urlObj = new URL(url);
         return urlObj.pathname.split('/').pop().replace(/\.jar.*$/, '');
     } catch {
-        return 'Neznámý plugin';
+        return 'Neznámý mod';
     }
 }
 

@@ -136,12 +136,73 @@ class BuildVersion(db.Model):
     __tablename__ = 'build_version'
     id = db.Column(db.Integer, primary_key=True)
     build_type_id = db.Column(db.Integer, db.ForeignKey('build_type.id'), nullable=False)
-    mc_version = db.Column(db.String(20), nullable=False)  # např. '1.20.1'
+    mc_version = db.Column(db.String(20), nullable=False)   # např. '1.20.1'
+    build_number = db.Column(db.String(50))                 # např. '47.3.0' (Forge) nebo '152' (Paper)
     download_url = db.Column(db.String(500), nullable=False)
-    file_path = db.Column(db.String(255))  # kde je build uložený
+    file_path = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     servers = db.relationship('Server', backref='build_version', lazy=True)
 
     def __repr__(self):
         return f'<BuildVersion {self.build_type.name} {self.mc_version}>'
+    
+class Mod(db.Model):
+    __tablename__ = "mod"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)              # slug nebo unikátní identifikátor
+    display_name = db.Column(db.String(100))                      # čitelný název
+    description = db.Column(db.Text)
+    version = db.Column(db.String(50))
+    author = db.Column(db.String(100))
+    file_path = db.Column(db.String(255), nullable=False)         # cesta k .jar souboru
+    download_url = db.Column(db.String(500))
+    source = db.Column(db.String(50), default="modrinth")         # modrinth / curseforge / manuál
+    plugin_type = db.Column(db.String(50), default="optional")    # core/optional/deprecated
+    category = db.Column(db.String(50))                           # např. "tech", "magic"
+    compatible_with = db.Column(db.String(100))                   # seznam verzí MC/Forge
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    # vztah k serverům (M:N)
+    servers = db.relationship("Server", secondary="server_mods", backref="mods", lazy="dynamic")
+
+    def __repr__(self):
+        return f"<Mod {self.name} v{self.version}>"
+
+# M:N spojovací tabulka mezi servery a módy
+server_mods = db.Table(
+    "server_mods",
+    db.Column("server_id", db.Integer, db.ForeignKey("server.id"), primary_key=True),
+    db.Column("mod_id", db.Integer, db.ForeignKey("mod.id"), primary_key=True),
+    db.Column("installed_at", db.DateTime, default=datetime.utcnow),
+    db.Column("is_active", db.Boolean, default=True),
+)
+
+class ModConfig(db.Model):
+    __tablename__ = "mod_config"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mod_id = db.Column(db.Integer, db.ForeignKey("mod.id"), nullable=False)
+    server_id = db.Column(db.Integer, db.ForeignKey("server.id"), nullable=False)
+    config_path = db.Column(db.String(255))
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+
+    mod = db.relationship("Mod", backref="configurations")
+    server = db.relationship("Server", backref="mod_configs")
+
+class ModUpdateLog(db.Model):
+    __tablename__ = "mod_update_log"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mod_id = db.Column(db.Integer, db.ForeignKey("mod.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    action = db.Column(db.String(50))  # install/update/uninstall
+    version_from = db.Column(db.String(50))
+    version_to = db.Column(db.String(50))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text)
+
+    mod = db.relationship("Mod", backref="update_logs")
+    user = db.relationship("User", backref="mod_actions")

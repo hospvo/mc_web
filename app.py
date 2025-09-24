@@ -4,12 +4,14 @@ from flask_migrate import Migrate
 from auth import auth_blueprint
 import os
 from mc_server import server_api
+from routes_mods import mods_api
 from models import db, User, Server
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'tajnyklic'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 
 
 
@@ -29,6 +31,7 @@ def load_user(user_id):
 # Blueprinty
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(server_api)
+app.register_blueprint(mods_api)
 
 @app.route('/')
 def index():
@@ -75,9 +78,19 @@ def server_plugins(server_id):
     
     return render_template("plugins_manager.html", server=server)
 
+@app.route('/server/<int:server_id>/mods')
+@login_required
+def server_mods(server_id):
+    server = Server.query.get_or_404(server_id)
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    return render_template("mods_manager.html", server=server)
+
 if __name__ == '__main__':
     if not os.path.exists('db.sqlite3'):
         with app.app_context():
             db.create_all()
     app.run(debug=True)
+
+
 

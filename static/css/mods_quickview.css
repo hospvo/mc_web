@@ -1,0 +1,99 @@
+/* [file name]: mods_quickview.css */
+.mods-quickview {
+  margin-top: 20px;
+  padding: 15px;
+  background: #2d3748;
+  border-radius: 8px;
+  border-left: 4px solid #9f7aea;
+  border-right: 1px solid #4a5568;
+  border-top: 1px solid #4a5568;
+  border-bottom: 1px solid #4a5568;
+  /*box-shadow: 0 2px 8px rgba(159, 122, 234, 0.2);*/
+}
+
+.mods-quickview h3 {
+  margin-top: 0;
+  color: #fff;
+  border-bottom: 1px solid #4a5568;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.mods-quickview h3 i {
+  color: #9f7aea;
+}
+
+#installed-mods-quickview {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.quickview-mod-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #3c4658;
+  border-radius: 4px;
+  margin-bottom: 5px;
+  border-left: 3px solid #9f7aea;
+}
+
+.quickview-mod-item:hover {
+  background: #4a5568;
+  transform: translateX(2px);
+  transition: all 0.2s ease;
+}
+
+.quickview-mod-name {
+  color: #fff;
+  font-weight: 500;
+  flex: 1;
+}
+
+.quickview-mod-version {
+  color: #a0aec0;
+  font-size: 0.8em;
+  background: rgba(159, 122, 234, 0.2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 8px;
+}
+
+#manage-mods-btn {
+  background-color: #9f7aea;
+  border-color: #805ad5;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+  margin-right: 15px;
+}
+
+#manage-mods-btn:hover {
+  background-color: #805ad5;
+  border-color: #6b46c1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(159, 122, 234, 0.3);
+}
+
+/* Styl pro prázdný stav */
+.mods-quickview .no-mods {
+  text-align: center;
+  padding: 20px;
+  color: #a0aec0;
+  font-style: italic;
+}
+
+.mods-quickview .no-mods i {
+  font-size: 2em;
+  display: block;
+  margin-bottom: 10px;
+  color: #9f7aea;
+}

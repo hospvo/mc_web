@@ -36,14 +36,21 @@ def get_all_folia_assets():
     return all_assets
 
 
-
-def extract_version_from_name(name):
-    """Z názvu souboru vybere verzi Minecraftu (např. 1.21.3)."""
+def extract_version_and_build(name):
+    """Z názvu souboru vybere MC verzi a číslo buildu.
+       Příklad: folia-1.21.1-build-45.jar → ("1.21.1", "45")
+    """
+    if not name:
+        return None, None
     parts = name.split("-")
-    for part in parts:
+    mc_version = None
+    build_number = None
+    for i, part in enumerate(parts):
         if part[0].isdigit() and "." in part:
-            return part
-    return None
+            mc_version = part
+        if part.lower() == "build" and i + 1 < len(parts):
+            build_number = parts[i + 1].split(".")[0]  # odřízneme případnou příponu .jar
+    return mc_version, build_number
 
 
 def ensure_build_type():
@@ -57,33 +64,39 @@ def ensure_build_type():
     return build_type
 
 
-def save_build_record_if_missing(version, url, build_type, file_path):
+def save_build_record_if_missing(mc_version, build_number, url, build_type, file_path):
     """Pokud v DB není záznam o verzi, vytvoří ho."""
-    exists = BuildVersion.query.filter_by(build_type=build_type, mc_version=version).first()
+    exists = BuildVersion.query.filter_by(
+        build_type=build_type,
+        mc_version=mc_version,
+        build_number=build_number
+    ).first()
     if exists:
-        print(f"✔️  Verze {version} již v databázi existuje.")
+        print(f"✔️  Verze {mc_version} build {build_number} již v databázi existuje.")
         return
 
     build = BuildVersion(
         build_type=build_type,
-        mc_version=version,
+        mc_version=mc_version,
+        build_number=build_number,
         download_url=url,
         file_path=file_path,
         created_at=datetime.utcnow()
     )
     db.session.add(build)
     db.session.commit()
-    print(f"📄 Záznam pro verzi {version} přidán do databáze.")
+    print(f"📄 Záznam pro {mc_version} build {build_number} přidán do databáze.")
 
 
-def download_and_save_build(version, url, build_type):
-    version_path = os.path.join(BASE_BUILD_PATH, BUILD_NAME, "versions", version)
+def download_and_save_build(mc_version, build_number, url, build_type):
+    version_folder = f"{mc_version}-{build_number}" if build_number else mc_version
+    version_path = os.path.join(BASE_BUILD_PATH, BUILD_NAME, "versions", version_folder)
     os.makedirs(version_path, exist_ok=True)
     file_path = os.path.join(version_path, "server.jar")
 
     if os.path.exists(file_path):
-        print(f"📁 Soubor pro verzi {version} již existuje.")
-        save_build_record_if_missing(version, url, build_type, file_path)
+        print(f"📁 Soubor pro {mc_version} build {build_number} již existuje.")
+        save_build_record_if_missing(mc_version, build_number, url, build_type, file_path)
         return
 
     print(f"⬇️  Stahuji {url} → {file_path}")
@@ -96,36 +109,40 @@ def download_and_save_build(version, url, build_type):
         f.write(response.content)
 
     print(f"✅ Soubor {file_path} uložen.")
-    save_build_record_if_missing(version, url, build_type, file_path)
+    save_build_record_if_missing(mc_version, build_number, url, build_type, file_path)
 
 
 def run_sync():
     print("🚀 Spouštím synchronizaci FOLIA buildů...")
-    assets  = get_all_folia_assets()
+    assets = get_all_folia_assets()
     build_type = ensure_build_type()
     new_versions = []
 
     for asset in assets:
         name = asset.get("name")
         url = asset.get("browser_download_url")
-        version = extract_version_from_name(name)
+        mc_version, build_number = extract_version_and_build(name)
 
-        if not version or not url:
+        if not mc_version or not url:
             print(f"⚠️  Přeskočeno: {name}")
             continue
 
-        version_path = os.path.join(BASE_BUILD_PATH, BUILD_NAME, "versions", version)
-        file_path = os.path.join(version_path, "server.jar")
+        db_exists = BuildVersion.query.filter_by(
+            build_type=build_type,
+            mc_version=mc_version,
+            build_number=build_number
+        ).first()
+
+        version_folder = f"{mc_version}-{build_number}" if build_number else mc_version
+        file_path = os.path.join(BASE_BUILD_PATH, BUILD_NAME, "versions", version_folder, "server.jar")
         file_exists = os.path.exists(file_path)
 
-        db_exists = BuildVersion.query.filter_by(build_type=build_type, mc_version=version).first()
-
         if file_exists and db_exists:
-            print(f"⏭️  Verze {version} již existuje (soubor + DB).")
+            print(f"⏭️  {mc_version} build {build_number} již existuje (soubor + DB).")
             continue
 
-        download_and_save_build(version, url, build_type)
-        new_versions.append(version)
+        download_and_save_build(mc_version, build_number, url, build_type)
+        new_versions.append(f"{mc_version}-{build_number}")
 
     if new_versions:
         message = f"Nalezeno {len(new_versions)} nových verzí: {', '.join(new_versions)}"

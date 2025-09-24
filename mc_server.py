@@ -17,9 +17,10 @@ from mcstatus import JavaServer
 
 
 # Base directory where all server folders will be stored
-BASE_SERVERS_PATH = r"C:\Users\hospv\Documents"
+BASE_SERVERS_PATH = r"C:\Users\hospv\Documents\minecraft_server"
 BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
 BASE_BUILD_PATH = r"C:\Users\hospv\Documents\minecraft_builds"
+BASE_FORGE_MODS_PATH = r"C:\Users\hospv\Documents\minecraft_forge_mods"
 #BASE_SERVERS_PATH = r"D:\\"
 #seznam aktuálně využitých jader
 USED_CPU = []
@@ -127,66 +128,83 @@ class PluginManager:
         try:
             slug = extract_slug_from_url(url)
             info = get_modrinth_plugin_info(slug)
-            #download_url = get_download_url(url)
 
-            # Získání hlavních informací z API
-            title = info["basic_info"]["title"] or slug
-            version = info["latest_version"]["version_number"] or "unknown"
-            author = (info["team"][0]["username"] if info["team"] else "unknown")
-            description = info["basic_info"]["description"] or ""
-            category = "; ".join(info["basic_info"].get("categories", ["unknown"]))
+            # Získáme bezpečně project_id a metadata
+            project_id = info.get("basic_info", {}).get("slug") or slug
+            title = info["basic_info"].get("title") or slug
+            version = info["latest_version"].get("version_number") if info.get("latest_version") else "unknown"
+            author = info["team"][0]["username"] if info.get("team") else "unknown"
+            description = info["basic_info"].get("description") or ""
+            categories = "; ".join(info["basic_info"].get("categories", ["unknown"]))
+            compatible_with = "; ".join(info["latest_version"].get("game_versions", [])) if info.get("latest_version") else ""
 
-            # Kontrola existence v DB
-            existing_plugin = Plugin.query.filter_by(name=slug).first()
+            # Kontrola existence pluginu podle unikátního identifikátoru (slug nebo project_id)
+            existing_plugin = Plugin.query.filter_by(name=project_id).first()
             if existing_plugin:
-                # Vrátíme speciální status kód 409 Conflict
                 return False, {
                     "type": "plugin_exists",
                     "message": f"Plugin '{title}' již existuje v databázi.",
                     "plugin_id": existing_plugin.id,
-                    "plugin_name": existing_plugin.display_name
+                    "plugin_name": existing_plugin.display_name or existing_plugin.name
                 }
 
-            # Stažení .jar do správné složky
+            # Stažení souboru s validací
+            if not download_url or not download_url.endswith(".jar"):
+                return False, "Neplatná URL – očekáván .jar soubor"
+
+            try:
+                r = requests.get(download_url, timeout=15, stream=True)
+                r.raise_for_status()
+            except Exception as e:
+                return False, f"Chyba při stahování pluginu: {str(e)}"
+
             filename = f"{slug}-{version}.jar"
             dest_path = os.path.join(BASE_PLUGIN_PATH, "plugins", "core", filename)
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
-            r = requests.get(download_url)
-            if r.status_code != 200:
-                return False, "Chyba při stahování pluginu"
             with open(dest_path, "wb") as f:
-                f.write(r.content)
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
 
-            # Vytvoření záznamu v DB
+            # Přidání pluginu do DB – commit až po úspěchu instalace na server
             plugin = Plugin(
-                name=slug,
+                name=project_id,
                 display_name=title,
                 version=version,
                 author=author,
                 description=description,
                 file_path=dest_path,
-                category=category,
-                compatible_with="; ".join(info["latest_version"].get("game_versions", [])),
+                category=categories,
+                compatible_with=compatible_with,
                 download_url=download_url,
                 source="modrinth",
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
             db.session.add(plugin)
-            db.session.commit()
+            db.session.flush()  # ještě necommitujeme
 
-            # Instalace na server
-            success, message = plugin_manager.install_plugin_to_server(
+            # Pokus o instalaci na server
+            success, message = self.install_plugin_to_server(
                 plugin_id=plugin.id,
                 server_id=server_id,
                 user_id=user_id
             )
-            return success, message
+
+            if not success:
+                db.session.rollback()
+                if os.path.exists(dest_path):
+                    os.remove(dest_path)  # uklidíme stažený soubor
+                return False, message
+
+            db.session.commit()
+            return True, f"Plugin '{title}' byl nainstalován"
 
         except Exception as e:
             db.session.rollback()
             return False, f"[CHYBA] {str(e)}"
+
     
     def install_plugin_to_server(self, plugin_id, server_id, user_id):
         """Nainstaluje plugin na konkrétní server"""
@@ -395,6 +413,38 @@ class PluginManager:
             db.session.rollback()
             print(f"[CHYBA] Výjimka při odinstalaci pluginu: {e}")
             return False, str(e)
+        
+    def check_for_updates(self, plugin_id):
+        """Zkontroluje, zda má plugin dostupnou novější verzi (aktuálně jen Modrinth)."""
+        plugin = Plugin.query.get(plugin_id)
+        if not plugin:
+            return {"update_available": False, "error": "Plugin not found"}
+
+        if plugin.source != "modrinth" or not plugin.name:
+            return {"update_available": False, "error": "Update check not supported for this plugin"}
+
+        try:
+            from plugin_instaler_modrinth import get_modrinth_plugin_info
+
+            # používáme slug/project_id uložený v plugin.name
+            slug = plugin.name
+            info = get_modrinth_plugin_info(slug)
+
+            latest_version = info.get("latest_version", {})
+            latest_number = latest_version.get("version_number")
+
+            if latest_number and latest_number != plugin.version:
+                return {
+                    "update_available": True,
+                    "new_version": latest_number,
+                    "changelog": latest_version.get("changelog") or ""
+                }
+            else:
+                return {"update_available": False}
+
+        except Exception as e:
+            return {"update_available": False, "error": str(e)}
+
 
 # Globální manager pro všechny servery
 server_manager = ServerManager()
@@ -413,22 +463,37 @@ def get_server_status(server_id):
     if not server:
         return {'status': 'error', 'message': 'Server config not found'}
 
+    # Zjistit build type
+    build_type = server.build_version.build_type.name.upper() if server.build_version else "VANILLA"
+    
     CPU_max_usage = {
         1: '100 %',
-        2: '200 %',
+        2: '200 %', 
         3: '300 %'
     }.get(server.service_level, '100 %')
+
+    # SPECIÁLNÍ DETEKCE PRO FORGE
+    def is_forge_process(proc, jar_name):
+        """Forge může mít různé názvy procesů"""
+        try:
+            cmdline = ' '.join(proc.info['cmdline']) if proc.info['cmdline'] else ''
+            # Forge může mít v cmdline různé názvy souborů
+            return ('java' in proc.info['name'].lower() and 
+                   (jar_name in cmdline or 
+                    'forge' in cmdline.lower() or
+                    any(f.endswith('.jar') and 'forge' in f.lower() for f in proc.info['cmdline'])))
+        except:
+            return False
 
     # Kontrola přes náš manager
     instance = server_manager.get_instance(server_id)
     if instance.process and instance.process.poll() is None:
         try:
             proc = psutil.Process(instance.process.pid)
-            if jar_name in ' '.join(proc.cmdline()):
+            if (build_type == "FORGE" and is_forge_process(proc, jar_name)) or \
+               (build_type != "FORGE" and jar_name in ' '.join(proc.cmdline())):
                 mem = proc.memory_info()
                 cpu = proc.cpu_percent(interval=0.1)
-                print(f"1 cpu percent is {cpu}")
-                print(f"cpu max{CPU_max_usage}")
                 return {
                     'status': 'running',
                     'pid': proc.pid,
@@ -436,7 +501,8 @@ def get_server_status(server_id):
                     'cpu_percent': round(cpu, 1) if cpu >= 0.1 else 0.0,
                     'since': datetime.fromtimestamp(proc.create_time()).strftime('%d.%m.%Y %H:%M'),
                     'port': 25565,
-                    'cpu_max': CPU_max_usage
+                    'cpu_max': CPU_max_usage,
+                    'build_type': build_type  # Přidáno pro informaci
                 }
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             if instance.get_assigned_cores():
@@ -447,12 +513,13 @@ def get_server_status(server_id):
     # Fallback - hledání procesů v systému
     for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'create_time']):
         try:
-            cmdline = ' '.join(proc.info['cmdline']) if proc.info['cmdline'] else ''
-            if 'java' in proc.info['name'].lower() and jar_name in cmdline:
+            cmdline = proc.info.get('cmdline') or []
+            cmdline_str = ' '.join(cmdline) if isinstance(cmdline, (list, tuple)) else str(cmdline)
+
+            if (build_type == "FORGE" and is_forge_process(proc, jar_name)) or \
+            (build_type != "FORGE" and jar_name in cmdline_str):
                 mem = proc.memory_info()
                 cpu = proc.cpu_percent(interval=0.1)
-                print(f"2 cpu percent is {cpu}")
-                print(f"2 cpu max{CPU_max_usage}")
                 return {
                     'status': 'running',
                     'pid': proc.pid,
@@ -460,7 +527,8 @@ def get_server_status(server_id):
                     'cpu_percent': round(cpu, 1) if cpu >= 0.1 else 0.0,
                     'since': datetime.fromtimestamp(proc.info['create_time']).strftime('%d.%m.%Y %H:%M'),
                     'port': 25565,
-                    'cpu_max': CPU_max_usage
+                    'cpu_max': CPU_max_usage,
+                    'build_type': build_type
                 }
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
@@ -471,7 +539,8 @@ def get_server_status(server_id):
         
     return {
         'status': 'stopped',
-        'cpu_max': CPU_max_usage
+        'cpu_max': CPU_max_usage,
+        'build_type': build_type
     }
 
 
@@ -502,17 +571,11 @@ def get_online_player_info(server_id):
         # 2. Status (TCP ping)
         if server.server_port:
             try:
-<<<<<<< Updated upstream
                 status = JavaServer(server_ip, server.server_port).status()
                 return {
                     "count": status.players.online,
                     "names": [p.name for p in (status.players.sample or [])]
                 }
-=======
-                print(f"[INFO] Pokus o ping na {server_ip}:{server.server_port}")
-                server_status = JavaServer(server_ip, server.server_port).status()
-                return server_status.players.online
->>>>>>> Stashed changes
             except Exception as e:
                 print(f"[WARN] Ping selhal na portu {server.server_port}: {e}")
 
@@ -585,6 +648,9 @@ def start_server(server_id):
     if not server:
         return {'status': 'error', 'message': 'Server config not found'}
     
+    # Zjistit build type pro speciální nastavení Forge
+    build_type = server.build_version.build_type.name.upper() if server.build_version else "VANILLA"
+    
     instance = server_manager.get_instance(server_id)
     
     # Pokud už server běží, nechtějte ho startovat znovu
@@ -592,8 +658,32 @@ def start_server(server_id):
         return False
     
     try:
+        # SPECIÁLNÍ NASTAVENÍ PRO FORGE
+        if build_type == "FORGE":
+            # Forge potřebuje více paměti a speciální parametry
+            java_args = [
+                "java",
+                "-Xmx6G",  # Více paměti pro Forge
+                "-Xms3G",
+                "-XX:+UseG1GC",
+                "-XX:+ParallelRefProcEnabled",
+                "-XX:MaxGCPauseMillis=200",
+                "-XX:+UnlockExperimentalVMOptions",
+                "-XX:+DisableExplicitGC",
+                "-XX:+AlwaysPreTouch",
+                "-jar", paths['server_jar'], "nogui"
+            ]
+        else:
+            # Původní nastavení pro vanilla/ostatní
+            java_args = [
+                "java", 
+                "-Xmx4G", 
+                "-Xms2G", 
+                "-jar", paths['server_jar'], "nogui"
+            ]
+
         server_process = subprocess.Popen(
-            ["java", "-Xmx4G", "-Xms2G", "-jar", paths['server_jar'], "nogui"],
+            java_args,
             cwd=paths['server_path'],
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
             stdout=subprocess.PIPE,
@@ -1241,29 +1331,27 @@ def check_plugin_updates():
     server_id = request.args.get('server_id', type=int)
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
-    
+
     server = Server.query.get_or_404(server_id)
-    
+
     # Ověření přístupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
-    
-    # Zde byste implementovali kontrolu aktualizací
-    # Toto je zjednodušený příklad
+
     updates = []
     for plugin in server.plugins:
-        # Předpokládáme, že máte nějakou metodu pro kontrolu aktualizací
         update_info = plugin_manager.check_for_updates(plugin.id)
-        if update_info['update_available']:
+        if update_info.get('update_available'):
             updates.append({
                 'plugin_id': plugin.id,
-                'name': plugin.name,
+                'name': plugin.display_name or plugin.name,
                 'current_version': plugin.version,
-                'new_version': update_info['new_version'],
-                'changelog': update_info['changelog']
+                'new_version': update_info.get('new_version'),
+                'changelog': update_info.get('changelog', "")
             })
-    
+
     return jsonify(updates)
+
 
 @server_api.route('/api/plugins/install-from-url', methods=['POST'])
 @login_required

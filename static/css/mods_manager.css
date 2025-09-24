@@ -1,0 +1,556 @@
+/* [file name]: mods_manager.css */
+/* Základní styly pro správu modů */
+.mods-manager-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #2d3748;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.mods-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #4a5568;
+}
+
+.mods-header h2 {
+    margin: 0;
+    color: #fff;
+    font-size: 1.5rem;
+}
+
+.mods-tabs {
+    display: flex;
+    border-bottom: 1px solid #4a5568;
+    margin-bottom: 15px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    color: #a0aec0;
+    font-weight: 600;
+    position: relative;
+    margin-right: 5px;
+}
+
+.tab-btn.active {
+    color: #9f7aea;
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #9f7aea;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.mods-search-box {
+    display: flex;
+    margin-bottom: 20px;
+    gap: 10px;
+}
+
+.mods-search-box input {
+    flex-grow: 1;
+    padding: 8px 12px;
+    background: #3c4658;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    color: #fff;
+}
+
+.mods-search-box select {
+    padding: 8px 12px;
+    background: #3c4658;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    color: #fff;
+}
+
+.mods-list-header {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    padding: 10px;
+    background: #3c4658;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #a0aec0;
+}
+
+.mods-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mod-item {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    padding: 12px;
+    background: #3c4658;
+    border-radius: 4px;
+    align-items: center;
+}
+
+.mod-item:hover {
+    background: #4a5568;
+}
+
+.mod-name {
+    font-weight: 600;
+    color: #fff;
+}
+
+.mod-version {
+    color: #a0aec0;
+    font-size: 0.9em;
+}
+
+.mod-description {
+    color: #cbd5e0;
+    font-size: 0.9em;
+}
+
+.mod-actions {
+    display: flex;
+    gap: 5px;
+    justify-content: flex-end;
+}
+
+.mod-btn {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+}
+
+.mod-btn.install {
+    background: #48bb78;
+    color: white;
+}
+
+.mod-btn.uninstall {
+    background: #f56565;
+    color: white;
+}
+
+.mod-btn.update {
+    background: #ed8936;
+    color: white;
+}
+
+.mods-status-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #4a5568;
+    color: #a0aec0;
+    font-size: 0.9em;
+}
+
+.mods-stats {
+    display: flex;
+    gap: 15px;
+}
+
+.mods-stats span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Rychlý náhled v server panelu */
+.mods-quickview {
+    margin-top: 20px;
+    background: #2d3748;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.mods-quickview h3 {
+    margin-top: 0;
+    color: #fff;
+}
+
+#installed-mods-quickview {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.quickview-mod-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    background: #3c4658;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.quickview-mod-name {
+    color: #fff;
+}
+
+.quickview-mod-version {
+    color: #a0aec0;
+    font-size: 0.8em;
+}
+
+/* Back button styles */
+#manage-mods-btn, #back-to-server-btn, #get-download-link-btn {
+  background-color: #9f7aea;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+  margin-right: 15px;
+}
+
+#manage-mods-btn:hover ,#back-to-server-btn:hover {
+  background-color: #805ad5;
+}
+
+#manage-mods-btn i,#back-to-server-btn i {
+  font-size: 14px;
+}
+
+    .result-display {
+        margin-top: 15px;
+        padding: 10px;
+        border-radius: 4px;
+    }
+    
+    .success {
+        color: green;
+    }
+    
+    .error {
+        color: red;
+    }
+    
+    .download-url {
+        width: 100%;
+        padding: 8px;
+        margin: 10px 0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    
+    .copy-btn {
+        background-color: #4CAF50;
+        color: white;
+        padding: 8px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .copy-btn:hover {
+        background-color: #45a049;
+    }
+
+/* Manual download section */
+.mod-manual-download {
+    padding: 20px;
+    background: #3c4658;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.mod-manual-download h3 {
+    margin-top: 0;
+    color: #fff;
+    border-bottom: 1px solid #4a5568;
+    padding-bottom: 10px;
+}
+
+.manual-download-form {
+    margin-top: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #a0aec0;
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    background: #ffffff;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    color: #2d3748;
+}
+
+#get-download-link-btn, #install-from-url-btn {
+    background-color: #9f7aea;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+#get-download-link-btn:hover, #install-from-url-btn:hover {
+    background-color: #805ad5;
+}
+
+.result-display {
+    margin-top: 20px;
+    padding: 15px;
+    background: #2d3748;
+    border-radius: 4px;
+    border-left: 4px solid #9f7aea;
+}
+
+.result-content {
+    color: #fff;
+}
+
+.success-message {
+    color: #48bb78;
+    font-weight: 600;
+}
+
+.error-message {
+    color: #f56565;
+    font-weight: 600;
+}
+
+.force-install-btn {
+    background-color: #ed8936;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.force-install-btn:hover {
+    background-color: #dd7724;
+}
+
+.mod-source-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.modrinth-logo {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+}
+
+/* Status messages */
+.status-message {
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+    display: none;
+}
+
+.status-message.success {
+    background-color: #48bb78;
+    color: white;
+}
+
+.status-message.error {
+    background-color: #f56565;
+    color: white;
+}
+
+.status-message.warning {
+    background-color: #ed8936;
+    color: white;
+}
+
+.status-message.status {
+    background-color: #4299e1;
+    color: white;
+}
+
+/* Update available styling */
+.mod-item.update-available {
+    border-left: 4px solid #ed8936;
+}
+
+.version-comparison {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.current-version {
+    color: #f56565;
+    text-decoration: line-through;
+}
+
+.new-version {
+    color: #48bb78;
+    font-weight: 600;
+}
+
+.changelog-preview {
+    margin-top: 8px;
+    padding: 8px;
+    background: #2d3748;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.changelog-preview p {
+    margin: 5px 0 0 0;
+    color: #a0aec0;
+}
+
+/* No mods/updates styling */
+.no-mods, .no-updates {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: #a0aec0;
+}
+
+.no-mods i, .no-updates i {
+    font-size: 3em;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.already-installed {
+    color: #48bb78;
+    font-weight: 600;
+}
+
+/* Installation success styling */
+.installation-success {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+    background: rgba(72, 187, 120, 0.1);
+    border-radius: 8px;
+    border-left: 4px solid #48bb78;
+}
+
+.success-icon {
+    font-size: 2.5em;
+    color: #48bb78;
+}
+
+.success-content h4 {
+    margin: 0 0 10px 0;
+    color: #48bb78;
+}
+
+.success-content p {
+    margin: 0;
+    color: #fff;
+}
+
+.success-actions {
+    margin-top: 15px;
+}
+
+.refresh-btn {
+    background-color: #4299e1;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.refresh-btn:hover {
+    background-color: #3182ce;
+}
+
+/* Mod exists warning styling */
+.mod-exists-warning {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+    background: rgba(237, 137, 54, 0.1);
+    border-radius: 8px;
+    border-left: 4px solid #ed8936;
+}
+
+.warning-icon {
+    font-size: 2.5em;
+    color: #ed8936;
+}
+
+.warning-content h4 {
+    margin: 0 0 10px 0;
+    color: #ed8936;
+}
+
+.warning-content p {
+    margin: 0 0 10px 0;
+    color: #fff;
+}
+
+.warning-note {
+    font-size: 0.9em;
+    color: #a0aec0 !important;
+    margin-top: 15px !important;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.warning-actions {
+    margin-top: 15px;
+}
+
+.switch-tab-btn {
+    background-color: #9f7aea;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.switch-tab-btn:hover {
+    background-color: #805ad5;
+}
+
+

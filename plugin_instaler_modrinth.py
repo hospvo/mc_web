@@ -110,31 +110,43 @@ def get_download_url(url, server_id=None):
         if not versions:
             raise ValueError("No versions found for this plugin")
 
-        # ⬇ Zjistíme loader + verzi pro server
-        preferred_loader = None
-        preferred_mc_version = None
+        preferred_loader, preferred_mc_version = None, None
         if server_id:
             preferred_loader, preferred_mc_version = get_server_loader_and_version(server_id)
 
-        # Najdeme nejlepší kompatibilní verzi
+        # 1) přesná shoda (loader + MC verze)
         for version in versions:
-            loaders = version.get("loaders", [])
-            mc_versions = version.get("game_versions", [])
-            if (
-                (not preferred_loader or preferred_loader in loaders)
-                and (not preferred_mc_version or preferred_mc_version in mc_versions)
-            ):
-                # OK – máme shodu
-                files = version.get("files", [])
-                if files and files[0].get("url"):
-                    return files[0]["url"]
+            if preferred_loader in version.get("loaders", []) and preferred_mc_version in version.get("game_versions", []):
+                return pick_file(version, preferred_loader), version, "exact"
 
-        # fallback na první dostupnou
-        return versions[0]["files"][0]["url"]
+        # 2) fallback – loader sedí, MC verze ne
+        for version in versions:
+            if preferred_loader in version.get("loaders", []):
+                return pick_file(version, preferred_loader), version, "fallback"
+
+        # 3) nic nenalezeno
+        raise ValueError(f"Nenalezena žádná verze pro loader '{preferred_loader}' (server má MC {preferred_mc_version})")
 
     except Exception as e:
-        print(f"[ERROR] Failed to get download URL: {str(e)}")
         raise ValueError(f"Failed to get download URL: {str(e)}")
+
+
+def pick_file(version, loader):
+    """Vybere správný soubor pro loader z files[]"""
+    files = version.get("files", [])
+    if not files:
+        return None
+    # 1) loader v názvu
+    for f in files:
+        fname = f.get("filename", "").lower()
+        if loader and loader in fname:
+            return f["url"]
+    # 2) primary soubor
+    for f in files:
+        if f.get("primary"):
+            return f["url"]
+    # 3) fallback
+    return files[0]["url"]
 
 
 
@@ -150,27 +162,30 @@ def handle_web_request(url, server_id=None):
                 "error": "Only Modrinth plugin URLs are supported (format: https://modrinth.com/plugin/plugin-name)"
             }
 
-        plugin_info = get_modrinth_plugin_info(extract_slug_from_url(url))
+        slug = extract_slug_from_url(url)
+        plugin_info = get_modrinth_plugin_info(slug)
         plugin_name = plugin_info["basic_info"]["title"] or plugin_info["basic_info"]["slug"]
-        all_versions = plugin_info["latest_version"]
-        compatible = True
-        reason = ""
-        preferred_loader, preferred_version = None, None
 
+        preferred_loader, preferred_version = None, None
         if server_id:
             try:
                 preferred_loader, preferred_version = get_server_loader_and_version(server_id)
-                if preferred_loader and preferred_loader not in all_versions["loaders"]:
-                    compatible = False
-                    reason = f"Plugin nepodporuje loader '{preferred_loader}'"
-                elif preferred_version and preferred_version not in all_versions["game_versions"]:
-                    compatible = False
-                    reason = f"Plugin nepodporuje Minecraft verzi '{preferred_version}'"
             except Exception as e:
-                # Pokud nelze načíst informace o serveru, nehodnotíme kompatibilitu
                 print("[WARN] Nelze zjistit loader a verzi:", e)
 
-        download_url = get_download_url(url, server_id=server_id)
+        # Získání URL + režimu (exact/fallback)
+        download_url, matched_version, mode = get_download_url(url, server_id=server_id)
+
+        # Nastavení kompatibility
+        compatible = True
+        reason = ""
+        if mode == "fallback":
+            compatible = False
+            reason = (
+                f"Pro loader '{preferred_loader}' a Minecraft verzi '{preferred_version}' "
+                f"nebyl nalezen plugin. "
+                f"Používá se fallback pro verze {', '.join(matched_version.get('game_versions', []))}."
+            )
 
         return {
             "success": True,
@@ -180,7 +195,8 @@ def handle_web_request(url, server_id=None):
             "compatible": compatible,
             "reason": reason,
             "expected_loader": preferred_loader,
-            "expected_version": preferred_version
+            "expected_version": preferred_version,
+            "mode": mode
         }
 
     except Exception as e:
