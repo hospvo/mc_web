@@ -153,12 +153,25 @@ class ServerCreatorApp:
                     version_folder
                 )
 
-                # SPECIÁLNÍ ZPRACOVÁNÍ PRO FORGE
+                # SPECIÁLNÍ ZPRACOVÁNÍ PRO FORGE a FABRIC
                 if build_type.name.upper() == "FORGE":
                     # Pro Forge kopírujeme všechny potřebné soubory
                     self.copy_forge_server_files(version_path, minecraft_server_path, future_server_id)
+
+                elif build_type.name.upper() == "FABRIC":
+                    # Pro Fabric kopírujeme jen bootstrap server.jar
+                    jar_path = os.path.join(version_path, "server.jar")
+                    if not os.path.exists(jar_path):
+                        messagebox.showerror("Chyba", f"Fabric bootstrap server.jar nebyl nalezen: {version_path}")
+                        return False
+
+                    target_jar = os.path.join(minecraft_server_path, f"server_{future_server_id}.jar")
+                    shutil.copy2(jar_path, target_jar)
+
+                    print(f"[INFO] Fabric bootstrap zkopírován do {target_jar}")
+
                 else:
-                    # Původní logika pro ostatní buildy
+                    # Původní logika pro ostatní buildy (Paper, Vanilla...)
                     jar_files = [f for f in os.listdir(version_path) if f.endswith(".jar")]
                     if not jar_files:
                         messagebox.showerror("Chyba", f"V této složce není žádný .jar soubor: {version_path}")
@@ -452,9 +465,7 @@ spawn-protection=0
         if not self.check_or_create_server_folder(server_name):
             return
         
-        # verze v GUI může vypadat jako "1.20.1-152", "1.20.1-47.3.0" nebo jen "1.21.1"
         selected_version = self.version_var.get()
-
         if "-" in selected_version:
             mc_version, build_number = selected_version.split("-", 1)
         else:
@@ -465,7 +476,7 @@ spawn-protection=0
                 # Najít uživatele
                 user = next(
                     (u for u in self.users 
-                     if f"{u.username} <{u.email}>" == self.user_var.get()), 
+                    if f"{u.username} <{u.email}>" == self.user_var.get()), 
                     None
                 )
                 if not user:
@@ -519,15 +530,36 @@ spawn-protection=0
                     server.status = "ERROR"
                     db.session.commit()
                     
-                    messagebox.showwarning(
-                        "Varování", 
+                    # Nabídnout možnost otevření portů navzdory chybě
+                    user_choice = messagebox.askyesno(
+                        "Varování - Ověření serveru selhalo", 
                         f"Server '{server_name}' byl vytvořen, ale nepodařilo se ověřit jeho funkčnost.\n\n"
                         f"Chyba: {verification_msg}\n\n"
                         f"Zkontrolujte konfiguraci manuálně. Server je nyní nastaven na portech: "
-                        f"{server.server_port} (server), {server.query_port} (query)"
+                        f"{server.server_port} (server), {server.query_port} (query)\n\n"
+                        f"⚠️  Porty se automaticky neotevřely z důvodu chyby ověření.\n"
+                        f"Chcete je přesto otevřít přes UPnP?\n\n"
+                        f"VAROVÁNÍ: Toto může být rizikové, pokud server nefunguje správně!",
+                        icon='warning'
                     )
+                    
+                    if user_choice:
+                        # Uživatel chce otevřít porty
+                        upnp_success = self.open_upnp_ports(server.server_port, server.query_port)
+                        if upnp_success:
+                            messagebox.showinfo(
+                                "Porty otevřeny", 
+                                f"Porty {server.server_port} (server) a {server.query_port} (query) byly úspěšně otevřeny přes UPnP.\n\n"
+                                f"Server zůstává v chybovém stavu - doporučujeme manuální kontrolu!"
+                            )
+                        else:
+                            messagebox.showerror(
+                                "Chyba UPnP", 
+                                "Nepodařilo se otevřít porty přes UPnP.\n"
+                                "Zkontrolujte nastavení routeru nebo otevřete porty manuálně."
+                            )
                 else:
-                    # Pokus o otevření portů přes UPnP
+                    # Úspěšné ověření - standardní otevření portů
                     upnp_success = self.open_upnp_ports(server.server_port, server.query_port)
                     upnp_status = f"Porty {server.server_port}, {server.query_port} otevřeny přes UPnP" if upnp_success else "Porty se nepodařilo otevřít přes UPnP"
                     
