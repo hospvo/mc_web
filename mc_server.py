@@ -48,9 +48,10 @@ class ServerInstance:
     """Třída pro správu stavu jednoho serveru"""
     def __init__(self, server_id):
         self.server_id = server_id
-        self.process = None
+        self.process = None               # subprocess.Popen instance
+        self.psutil_proc = None           # psutil.Process instance pro monitoring
         self.console_output = []
-        self.lock = threading.Lock()  # Pro thread-safe operace
+        self.lock = threading.Lock()      # Pro thread-safe operace
         self.assigned_cores = []
         
     def add_output_line(self, line):
@@ -82,6 +83,12 @@ class ServerInstance:
                 if core in USED_CPU:
                     USED_CPU.remove(core)
             self.assigned_cores = []
+            
+    def cleanup(self):
+        """Vyčistí prostředky při zastavení serveru"""
+        self.release_cores()
+        self.psutil_proc = None
+        self.process = None
         
 class ServerManager:
     """Třída pro správu všech server instancí"""
@@ -450,10 +457,8 @@ class PluginManager:
 server_manager = ServerManager()
 plugin_manager = PluginManager()
 
-
-
 def get_server_status(server_id):
-    """Get status of a specific server"""
+    """Získá stav a statistiky Minecraft serveru"""
     paths = get_server_paths(server_id)
     if not paths:
         return {'status': 'error', 'message': 'Server not found'}
@@ -463,37 +468,40 @@ def get_server_status(server_id):
     if not server:
         return {'status': 'error', 'message': 'Server config not found'}
 
-    # Zjistit build type
+    # Build type
     build_type = server.build_version.build_type.name.upper() if server.build_version else "VANILLA"
-    
+
+    # Limit CPU podle service levelu
     CPU_max_usage = {
         1: '100 %',
-        2: '200 %', 
+        2: '200 %',
         3: '300 %'
     }.get(server.service_level, '100 %')
 
-    # SPECIÁLNÍ DETEKCE PRO FORGE
+    # Funkce pro rozpoznání Forge procesu
     def is_forge_process(proc, jar_name):
-        """Forge může mít různé názvy procesů"""
         try:
-            cmdline = ' '.join(proc.info['cmdline']) if proc.info['cmdline'] else ''
-            # Forge může mít v cmdline různé názvy souborů
-            return ('java' in proc.info['name'].lower() and 
-                   (jar_name in cmdline or 
-                    'forge' in cmdline.lower() or
-                    any(f.endswith('.jar') and 'forge' in f.lower() for f in proc.info['cmdline'])))
-        except:
+            cmdline = ' '.join(proc.cmdline()) if proc.cmdline() else ''
+            return (
+                'java' in proc.name().lower()
+                and (jar_name in cmdline
+                     or 'forge' in cmdline.lower()
+                     or any(f.endswith('.jar') and 'forge' in f.lower() for f in proc.cmdline()))
+            )
+        except Exception:
             return False
 
-    # Kontrola přes náš manager
+    # --- 1) Zkontrolovat náš manager ---
     instance = server_manager.get_instance(server_id)
-    if instance.process and instance.process.poll() is None:
+    
+    # Kontrola procesu v manageru
+    if instance.psutil_proc:
         try:
-            proc = psutil.Process(instance.process.pid)
-            if (build_type == "FORGE" and is_forge_process(proc, jar_name)) or \
-               (build_type != "FORGE" and jar_name in ' '.join(proc.cmdline())):
+            proc = instance.psutil_proc
+            if proc.is_running() and proc.status() != psutil.STATUS_ZOMBIE:
                 mem = proc.memory_info()
                 cpu = proc.cpu_percent(interval=0.1)
+
                 return {
                     'status': 'running',
                     'pid': proc.pid,
@@ -502,24 +510,57 @@ def get_server_status(server_id):
                     'since': datetime.fromtimestamp(proc.create_time()).strftime('%d.%m.%Y %H:%M'),
                     'port': 25565,
                     'cpu_max': CPU_max_usage,
-                    'build_type': build_type  # Přidáno pro informaci
+                    'build_type': build_type,
+                    'assigned_cores': instance.get_assigned_cores()
                 }
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            if instance.get_assigned_cores():
-                print(f"Upozornění: Server {server_id} má přiřazená jádra, ale proces neběží. Uvolňuji jádra.")
-                instance.release_cores()
-                instance.process = None
+            # proces už neběží
+            print(f"Proces serveru {server_id} již neběží, provádím cleanup")
+            instance.cleanup()
 
-    # Fallback - hledání procesů v systému
+    # Kontrola Popen procesu
+    if instance.process and instance.process.poll() is None:
+        # Popen proces běží, ale psutil proces je None - najdeme ho
+        try:
+            parent = psutil.Process(instance.process.pid)
+            for child in parent.children(recursive=True):
+                try:
+                    cmdline = ' '.join(child.cmdline())
+                    if jar_name in cmdline or 'java' in child.name().lower():
+                        instance.psutil_proc = child
+                        mem = child.memory_info()
+                        cpu = child.cpu_percent(interval=0.1)
+                        
+                        return {
+                            'status': 'running',
+                            'pid': child.pid,
+                            'ram_used_mb': round(mem.rss / (1024 ** 2)),
+                            'cpu_percent': round(cpu, 1) if cpu >= 0.1 else 0.0,
+                            'since': datetime.fromtimestamp(child.create_time()).strftime('%d.%m.%Y %H:%M'),
+                            'port': 25565,
+                            'cpu_max': CPU_max_usage,
+                            'build_type': build_type,
+                            'assigned_cores': instance.get_assigned_cores()
+                        }
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception as e:
+            print(f"Chyba při hledání procesu: {e}")
+
+    # --- 2) Fallback: hledat v systému podle jar_name ---
     for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'create_time']):
         try:
             cmdline = proc.info.get('cmdline') or []
             cmdline_str = ' '.join(cmdline) if isinstance(cmdline, (list, tuple)) else str(cmdline)
 
             if (build_type == "FORGE" and is_forge_process(proc, jar_name)) or \
-            (build_type != "FORGE" and jar_name in cmdline_str):
+               (build_type != "FORGE" and jar_name in cmdline_str):
                 mem = proc.memory_info()
                 cpu = proc.cpu_percent(interval=0.1)
+
+                # Aktualizovat instanci s nalezeným procesem
+                instance.psutil_proc = proc
+                
                 return {
                     'status': 'running',
                     'pid': proc.pid,
@@ -528,20 +569,21 @@ def get_server_status(server_id):
                     'since': datetime.fromtimestamp(proc.info['create_time']).strftime('%d.%m.%Y %H:%M'),
                     'port': 25565,
                     'cpu_max': CPU_max_usage,
-                    'build_type': build_type
+                    'build_type': build_type,
+                    'assigned_cores': instance.get_assigned_cores()
                 }
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-    if instance.get_assigned_cores():
-        print(f"Upozornění: Server {server_id} má přiřazená jádra, ale neběží. Uvolňuji jádra.")
-        instance.release_cores()
-        
+    # --- 3) Pokud nic neběží ---
+    instance.cleanup()
+
     return {
         'status': 'stopped',
         'cpu_max': CPU_max_usage,
         'build_type': build_type
     }
+
 
 
 def get_online_player_info(server_id):
@@ -646,43 +688,31 @@ def start_server(server_id):
     
     server = Server.query.get(server_id)
     if not server:
-        return {'status': 'error', 'message': 'Server config not found'}
+        return False
     
-    # Zjistit build type pro speciální nastavení Forge
     build_type = server.build_version.build_type.name.upper() if server.build_version else "VANILLA"
-    
     instance = server_manager.get_instance(server_id)
-    
-    # Pokud už server běží, nechtějte ho startovat znovu
+
+    # Kontrola, zda již server běží
     if instance.process and instance.process.poll() is None:
+        print(f"Server {server_id} již běží")
         return False
     
     try:
-        # SPECIÁLNÍ NASTAVENÍ PRO FORGE
+        # Forge potřebuje jiné parametry
         if build_type == "FORGE":
-            # Forge potřebuje více paměti a speciální parametry
             java_args = [
-                "java",
-                "-Xmx6G",  # Více paměti pro Forge
-                "-Xms3G",
-                "-XX:+UseG1GC",
-                "-XX:+ParallelRefProcEnabled",
-                "-XX:MaxGCPauseMillis=200",
-                "-XX:+UnlockExperimentalVMOptions",
-                "-XX:+DisableExplicitGC",
-                "-XX:+AlwaysPreTouch",
+                "java", "-Xmx6G", "-Xms3G",
+                "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled",
+                "-XX:MaxGCPauseMillis=200", "-XX:+UnlockExperimentalVMOptions",
+                "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch",
                 "-jar", paths['server_jar'], "nogui"
             ]
         else:
-            # Původní nastavení pro vanilla/ostatní
-            java_args = [
-                "java", 
-                "-Xmx4G", 
-                "-Xms2G", 
-                "-jar", paths['server_jar'], "nogui"
-            ]
+            java_args = ["java", "-Xmx4G", "-Xms2G", "-jar", paths['server_jar'], "nogui"]
 
-        server_process = subprocess.Popen(
+        # Spuštění serveru
+        process = subprocess.Popen(
             java_args,
             cwd=paths['server_path'],
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
@@ -690,107 +720,158 @@ def start_server(server_id):
             stderr=subprocess.STDOUT,
             stdin=subprocess.PIPE,
             text=True,
-            bufsize=1
+            bufsize=1,
+            encoding='utf-8'
         )
 
-        # Počkej chvíli, než proces naběhne (volitelné, ale užitečné)
-        time.sleep(1)
+        time.sleep(2)  # Dej JVM chvilku času
 
-        # Nastav afinitu (jádra 0, 1, 2)
+        # Najít skutečný JVM proces
+        psutil_proc = None
+        try:
+            parent = psutil.Process(process.pid)
+            for child in parent.children(recursive=True):
+                try:
+                    cmdline = ' '.join(child.cmdline())
+                    if paths['server_jar'] in cmdline or 'java' in child.name().lower():
+                        psutil_proc = child
+                        break
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            # Fallback na rodičovský proces
+            if psutil_proc is None:
+                psutil_proc = parent
+        except Exception as e:
+            print(f"Chyba při hledání procesu: {e}")
+            psutil_proc = psutil.Process(process.pid)
 
-        # Set max capacity based on service level
+        # Nastavení afinity (CPU core assignment)
         if server.service_level == 1:
-            CORES_to_add = 2  #2 cores
+            cores_to_assign = 2
         elif server.service_level == 2:
-            CORES_to_add = 4 #4 cores
-        else:  # level 3
-            CORES_to_add = 6 #6 cores
+            cores_to_assign = 4
+        else:
+            cores_to_assign = 6
 
-        FREE_cores = []
-        x = 0
+        free_cores = []
+        for core in range(total_cores):
+            if core not in USED_CPU:
+                free_cores.append(core)
+            if len(free_cores) >= cores_to_assign:
+                break
 
-        while len(FREE_cores) < CORES_to_add and x < total_cores:
-            if x not in USED_CPU:
-                FREE_cores.append(x)
-            x += 1
-
-        if len(FREE_cores) < CORES_to_add:
+        if len(free_cores) < cores_to_assign:
             print("Nedostatek volných jader!")
-            # Můžeš zvážit fallback nebo jiné chování
+            process.terminate()
             return False
     
-        USED_CPU += FREE_cores
-        print(f'všechny použitá jádra {USED_CPU}')
-        print(f"počet jader, keré by se měli přiřadit serveru {CORES_to_add}")
-        print(f"jádra která se přiřadí novému serveru {FREE_cores}")
+        # Přiřazení jader
+        USED_CPU.extend(free_cores)
+        try:
+            psutil_proc.cpu_affinity(free_cores)
+        except Exception as e:
+            print(f"Chyba při nastavování affinity: {e}")
 
-        p = psutil.Process(server_process.pid)
-        p.cpu_affinity(FREE_cores)
+        # Uložení referencí
+        instance.process = process
+        instance.psutil_proc = psutil_proc
+        instance.set_assigned_cores(free_cores)
 
-        # save informations on which cores server running
-        instance.set_assigned_cores(FREE_cores)
-
-        # Store the process
-        instance.process = server_process
-        
-        # Start reading console output in separate thread
+        # Start čtení konzole
         threading.Thread(
             target=read_console_output, 
-            args=(server_id, server_process),
+            args=(server_id, process),
             daemon=True
         ).start()
 
+        print(f"Server {server_id} úspěšně spuštěn, přiřazena jádra: {free_cores}")
         return True
+        
     except Exception as e:
-        print(f"Start error for server {server_id}: {e}")
+        print(f"Chyba při startu serveru {server_id}: {e}")
+        # Uvolnění jader při chybě
+        instance.cleanup()
         return False
+
     
 def read_console_output(server_id, process):
     """Read console output for a specific server"""
     instance = server_manager.get_instance(server_id)
     
-    for line in iter(process.stdout.readline, ''):
-        instance.add_output_line(line)
-        
-        if "Done" in line:  # Server started successfully
-            print(f"Server {server_id} started: {line}")
+    try:
+        for line in iter(process.stdout.readline, ''):
+            if line:
+                instance.add_output_line(line.strip())
+                
+                if "Done" in line:  # Server started successfully
+                    print(f"Server {server_id} started successfully: {line.strip()}")
+    except Exception as e:
+        print(f"Chyba při čtení konzole serveru {server_id}: {e}")
+    finally:
+        # Clean up when process ends
+        try:
+            process.stdout.close()
+        except:
+            pass
+            
+        return_code = process.wait()
+        print(f"Proces serveru {server_id} skončil s kódem: {return_code}")
+        instance.cleanup()
 
-    # Clean up when process ends
-    process.stdout.close()
-    process.wait()
-    instance.process = None
-
-def stop_server(server_id, pid):
+def stop_server(server_id, pid=None):
     """Stop a specific server"""
     instance = server_manager.get_instance(server_id)
     
     try:
-        # Pokud máme proces v našem manageru, použijeme ho
-        if instance.process:
-            os.kill(instance.process.pid, signal.CTRL_BREAK_EVENT)
-        else:
-            # Fallback - použijeme poskytnuté PID
-            os.kill(pid, signal.CTRL_BREAK_EVENT)
+        # Prioritně použijeme proces z instance
+        target_pid = None
+        if instance.psutil_proc:
+            target_pid = instance.psutil_proc.pid
+        elif instance.process and instance.process.poll() is None:
+            target_pid = instance.process.pid
+        elif pid:
+            target_pid = pid
+            
+        if not target_pid:
+            print(f"Nelze najít PID pro zastavení serveru {server_id}")
+            instance.cleanup()
+            return True  # Už je zastavený
+            
+        # Pokus o graceful shutdown
+        if instance.process and instance.process.poll() is None:
+            try:
+                instance.process.stdin.write('stop\n')
+                instance.process.stdin.flush()
+            except Exception as e:
+                print(f"Chyba při posílání stop příkazu: {e}")
         
         # Wait max 30 seconds for shutdown
         for _ in range(30):
-            if not psutil.pid_exists(pid):
-                instance.release_cores() #remove cores from global list
-                instance.process = None
+            if not psutil.pid_exists(target_pid):
+                instance.cleanup()
+                print(f"Server {server_id} úspěšně zastaven")
                 return True
             time.sleep(1)
         
         # Forceful termination if still running
-        os.kill(pid, signal.SIGTERM)
-        instance.release_cores() #remove cores from global list
-        instance.process = None
+        print(f"Vynucené ukončení serveru {server_id}")
+        try:
+            proc = psutil.Process(target_pid)
+            proc.terminate()
+            proc.wait(timeout=10)
+        except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+            try:
+                os.kill(target_pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+                
+        instance.cleanup()
         return True
-    except ProcessLookupError:
-        instance.release_cores() #remove cores from global list
-        instance.process = None
-        return True  # Process already stopped
+        
     except Exception as e:
-        print(f"Stop error for server {server_id}: {e}")
+        print(f"Chyba při zastavování serveru {server_id}: {e}")
+        instance.cleanup()
         return False
     
 def restart_server(server_id):
