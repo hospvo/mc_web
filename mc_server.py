@@ -20,7 +20,7 @@ from mcstatus import JavaServer
 BASE_SERVERS_PATH = r"C:\Users\hospv\Documents\minecraft_server"
 BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
 BASE_BUILD_PATH = r"C:\Users\hospv\Documents\minecraft_builds"
-BASE_FORGE_MODS_PATH = r"C:\Users\hospv\Documents\minecraft_forge_mods"
+BASE_MODS_PATH = r"C:\Users\hospv\Documents\minecraft_mods"  # Společné úložiště pro všechny módy
 #BASE_SERVERS_PATH = r"D:\\"
 #seznam aktuálně využitých jader
 USED_CPU = []
@@ -1266,6 +1266,34 @@ def remove_server_admin():
     db.session.commit()
 
     return jsonify({'success': True})
+
+
+@server_api.route('/api/server/build-type')
+@login_required
+def get_server_build_type():
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+    
+    server = Server.query.get_or_404(server_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    build_type = server.build_version.build_type.name if server.build_version else "UNKNOWN"
+    
+    return jsonify({
+        'build_type': build_type,
+        'is_mod_server': build_type.upper() in [
+            'FABRIC', 'FORGE', 'NEOFORGE', 'QUILT', 'BABRIC', 'BTA',
+            'JAVA_AGENT', 'LEGACY_FABRIC', 'LITELOADER', 'MODLOADER',
+            'NILLOADER', 'ORNITHE', 'RIFT', 'RISUGAMI'
+        ],
+        'is_plugin_server': build_type.upper() in [
+            'BUKKIT', 'FOLIA', 'PAPER', 'PURPUR', 'SPIGOT', 'SPONGE'
+        ]
+    })
 
 
 ### plugin manager ###

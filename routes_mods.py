@@ -1,61 +1,161 @@
 import os
 import shutil
 import requests
+import json
 from datetime import datetime
 from flask import Blueprint, request, jsonify, abort
 from flask_login import login_required, current_user
 from urllib.parse import urlparse
 
-
-#from app import app
-from models import db, Server, Mod, ModConfig, ModUpdateLog, BuildType, BuildVersion, server_mods
-from mc_server import BASE_FORGE_MODS_PATH,  BASE_SERVERS_PATH
+from models import db, Server, Mod, ModConfig, ModUpdateLog, server_mods
+from mc_server import BASE_MODS_PATH, BASE_SERVERS_PATH
 
 # Blueprint
 mods_api = Blueprint("mods_api", __name__)
 
+def is_mod_server(server: Server) -> bool:
+    """Ověří, že server podporuje módy"""
+    if not server.build_version or not server.build_version.build_type:
+        return False
+    
+    build_type = server.build_version.build_type.name.upper()
+    mod_builds = [
+        'FABRIC', 'FORGE', 'NEOFORGE', 'QUILT', 'BABRIC', 'BTA',
+        'JAVA_AGENT', 'LEGACY_FABRIC', 'LITELOADER', 'MODLOADER',
+        'NILLOADER', 'ORNITHE', 'RIFT', 'RISUGAMI'
+    ]
+    return build_type in mod_builds
 
-def is_forge_server(server: Server) -> bool:
-    """Ověří, že server má Forge build"""
-    return server.build_version and server.build_version.build_type.name.upper() == "FORGE"
-
+def get_server_loader(server: Server) -> str:
+    """Vrátí loader serveru v lowercase (fabric, forge, neoforge, etc.)"""
+    if not server.build_version or not server.build_version.build_type:
+        return None
+    return server.build_version.build_type.name.lower()
 
 # ---- Pomocné funkce pro Modrinth ----
 
 def extract_modrinth_slug(url):
-    """Vrátí slug z URL typu https://modrinth.com/mod/<slug>"""
-    parsed = urlparse(url)
-    parts = parsed.path.strip("/").split("/")
-    if len(parts) < 2 or parts[0] != "mod":
-        raise ValueError("Neplatná Modrinth URL (očekáváno https://modrinth.com/mod/<nazev>)")
-    return parts[1]
-
+    """Vrátí slug z URL typu https://modrinth.com/mod/<slug> nebo /plugin/<slug>"""
+    try:
+        parsed = urlparse(url)
+        parts = parsed.path.strip("/").split("/")
+        
+        if len(parts) < 2:
+            raise ValueError("Neplatná Modrinth URL - očekáváno https://modrinth.com/mod/<nazev> nebo /plugin/<nazev>")
+        
+        project_type = parts[0]  # 'mod' nebo 'plugin'
+        slug = parts[1]
+        
+        valid_types = ['mod', 'plugin', 'resourcepack', 'datapack', 'modpack', 'shader']
+        if project_type not in valid_types:
+            raise ValueError(f"Neplatný typ projektu Modrinth: {project_type}. Očekáváno: {', '.join(valid_types)}")
+        
+        return slug, project_type
+        
+    except Exception as e:
+        raise ValueError(f"Chyba při parsování URL: {e}")
 
 def get_modrinth_info(slug):
-    """Vrátí detailní info o projektu z Modrinthu."""
-    project = requests.get(f"https://api.modrinth.com/v2/project/{slug}").json()
-    versions = requests.get(f"https://api.modrinth.com/v2/project/{slug}/version").json()
-    team = requests.get(f"https://api.modrinth.com/v2/project/{slug}/members").json()
+    """Vrátí detailní info o projektu z Modrinthu - funguje pro mody i pluginy."""
+    try:
+        # Přidáme timeout a headers pro lepší kompatibilitu
+        headers = {
+            'User-Agent': 'MinecraftServerManager/1.0 (https://github.com/your-repo)',
+            'Accept': 'application/json'
+        }
+        
+        # Získáme základní info o projektu
+        project_url = f"https://api.modrinth.com/v2/project/{slug}"
+        project_response = requests.get(project_url, headers=headers, timeout=10)
+        
+        if project_response.status_code == 404:
+            raise ValueError(f"Projekt '{slug}' nebyl nalezen na Modrinth")
+        elif project_response.status_code != 200:
+            raise ValueError(f"Modrinth API vrátilo chybu: {project_response.status_code}")
+            
+        project = project_response.json()
+        
+        # Získáme verze projektu
+        versions_url = f"https://api.modrinth.com/v2/project/{slug}/version"
+        versions_response = requests.get(versions_url, headers=headers, timeout=10)
+        
+        if versions_response.status_code != 200:
+            raise ValueError(f"Chyba při načítání verzí: {versions_response.status_code}")
+            
+        versions = versions_response.json()
+        
+        # Získáme informace o týmu
+        team_url = f"https://api.modrinth.com/v2/project/{slug}/members"
+        team_response = requests.get(team_url, headers=headers, timeout=10)
+        team = team_response.json() if team_response.status_code == 200 else []
 
-    return {
-        "project": project,
-        "versions": versions,
-        "team": team,
-    }
+        # Detekce typu projektu
+        project_type = project.get("project_type", "mod")
+        
+        # Detekce zda může být plugin
+        can_be_plugin = False
+        all_loaders = set()
+        
+        # Analyzujeme loadery ze všech verzí
+        for version in versions:
+            version_loaders = version.get("loaders", [])
+            all_loaders.update(version_loaders)
+            
+            # Pokud má verze plugin loadery, může být plugin
+            plugin_loaders = {'bukkit', 'spigot', 'paper', 'purpur', 'folia', 'sponge'}
+            if any(loader in plugin_loaders for loader in version_loaders):
+                can_be_plugin = True
 
+        return {
+            "project": project,
+            "versions": versions,
+            "team": team,
+            "project_type": project_type,
+            "can_be_plugin": can_be_plugin,
+            "all_loaders": list(all_loaders)
+        }
+        
+    except requests.exceptions.Timeout:
+        raise ValueError("Timeout při komunikaci s Modrinth API")
+    except requests.exceptions.ConnectionError:
+        raise ValueError("Chyba připojení k Modrinth API")
+    except requests.exceptions.RequestException as e:
+        raise ValueError(f"Chyba HTTP: {e}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Neplatná odpověď z Modrinth API: {e}")
+    except Exception as e:
+        raise ValueError(f"Neočekávaná chyba: {e}")
 
 def pick_best_version(versions, preferred_loader=None, preferred_mc_version=None):
     """Vybere nejlepší verzi modu podle loaderu a MC verze."""
-    for v in versions:
-        loaders = v.get("loaders", [])
-        mc_versions = v.get("game_versions", [])
-        if ((not preferred_loader or preferred_loader in loaders) and
-            (not preferred_mc_version or preferred_mc_version in mc_versions)):
-            return v
-    return versions[0] if versions else None
-
-
-
+    if not versions:
+        return None
+    
+    # 1. Přesná shoda - loader i MC verze
+    for version in versions:
+        loaders = version.get("loaders", [])
+        mc_versions = version.get("game_versions", [])
+        if (preferred_loader and preferred_loader in loaders and 
+            preferred_mc_version and preferred_mc_version in mc_versions):
+            return version
+    
+    # 2. Shoda podle loaderu
+    for version in versions:
+        loaders = version.get("loaders", [])
+        if preferred_loader and preferred_loader in loaders:
+            return version
+    
+    # 3. Shoda podle MC verze
+    for version in versions:
+        mc_versions = version.get("game_versions", [])
+        if preferred_mc_version and preferred_mc_version in mc_versions:
+            return version
+    
+    # 4. Nejnovější verze (podle data publikování)
+    try:
+        return sorted(versions, key=lambda v: v.get("date_published", ""), reverse=True)[0]
+    except:
+        return versions[0] if versions else None
 
 @mods_api.route("/api/mods/installed")
 @login_required
@@ -70,8 +170,8 @@ def get_installed_mods():
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    if not is_forge_server(server):
-        return jsonify({"error": "Server není Forge build"}), 400
+    if not is_mod_server(server):
+        return jsonify({"error": "Server nepodporuje módy"}), 400
 
     mods = []
     for mod in server.mods:
@@ -82,12 +182,13 @@ def get_installed_mods():
             "version": mod.version,
             "author": mod.author,
             "is_active": True,
-            "installed_at": None,  # můžeš doplnit ze server_mods
-            "description": mod.description
+            "installed_at": None,
+            "description": mod.description,
+            "loader": mod.loader,
+            "minecraft_version": mod.minecraft_version
         })
 
     return jsonify(mods)
-
 
 @mods_api.route("/api/mods/available")
 @login_required
@@ -95,6 +196,22 @@ def get_available_mods():
     search = request.args.get("search", "").lower()
     category = request.args.get("category", "all")
     server_id = request.args.get("server_id", type=int)
+
+    # POVINNÉ - musíme mít server_id pro filtrování
+    if not server_id:
+        return jsonify({"error": "Missing server_id"}), 400
+
+    server = Server.query.get_or_404(server_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+
+    if not is_mod_server(server):
+        return jsonify({"error": "Server nepodporuje módy"}), 400
+
+    server_loader = get_server_loader(server)
+    server_mc_version = server.build_version.mc_version if server.build_version else None
 
     query = Mod.query
 
@@ -108,15 +225,34 @@ def get_available_mods():
     if category != "all":
         query = query.filter_by(category=category)
 
-    mods = query.all()
+    all_mods = query.all()
+    
+    # FILTROVÁNÍ pouze kompatibilních projektů (modů i pluginů s mod loader support)
+    compatible_mods = []
+    for mod in all_mods:
+        # Pokud mod nemá metadata, přeskočíme ho
+        if not mod.supported_loaders or not mod.minecraft_versions:
+            continue
+            
+        try:
+            supported_loaders = json.loads(mod.supported_loaders) if mod.supported_loaders else []
+            supported_mc_versions = json.loads(mod.minecraft_versions) if mod.minecraft_versions else []
+            
+            # Kontrola kompatibility - mod musí podporovat loader serveru
+            loader_compatible = server_loader in supported_loaders
+            
+            # Kontrola kompatibility MC verze
+            mc_compatible = not server_mc_version or server_mc_version in supported_mc_versions
+            
+            # ROZŠÍŘENÍ: Projekty, které projdou oběma kontrolami, jsou kompatibilní
+            if loader_compatible and mc_compatible:
+                compatible_mods.append(mod)
+                
+        except json.JSONDecodeError:
+            # Pokud JSON není validní, přeskočíme mod
+            continue
 
-    # pokud je zadaný server_id, filtruj podle Forge verze serveru
-    if server_id:
-        server = Server.query.get(server_id)
-        if server and is_forge_server(server):
-            mc_version = server.build_version.mc_version
-            mods = [m for m in mods if not m.compatible_with or mc_version in m.compatible_with]
-
+    # Vrátíme seznam kompatibilních projektů s rozšířenými metadaty
     return jsonify([{
         "id": m.id,
         "name": m.name,
@@ -125,9 +261,16 @@ def get_available_mods():
         "author": m.author,
         "description": m.description,
         "category": m.category,
-        "compatible_with": m.compatible_with
-    } for m in mods])
-
+        "loader": m.loader,
+        "minecraft_version": m.minecraft_version,
+        "supported_loaders": json.loads(m.supported_loaders) if m.supported_loaders else [],
+        "minecraft_versions": json.loads(m.minecraft_versions) if m.minecraft_versions else [],
+        # NOVÁ ROZŠÍŘENÍ PRO HYBRIDNÍ PROJEKTY:
+        "project_type": m.project_type or "mod",  # mod, plugin, resourcepack, etc.
+        "can_be_plugin": m.can_be_plugin if m.can_be_plugin is not None else False,
+        "is_hybrid": m.can_be_plugin and (m.project_type == "plugin" or m.project_type is None),
+        "icon_url": f"https://cdn.modrinth.com/data/{m.name}/icon.png" if m.source == "modrinth" else None
+    } for m in compatible_mods])
 
 @mods_api.route("/api/mods/install", methods=["POST"])
 @login_required
@@ -147,15 +290,33 @@ def install_mod():
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    if not is_forge_server(server):
-        return jsonify({"error": "Server není Forge build"}), 400
+    if not is_mod_server(server):
+        return jsonify({"error": "Server nepodporuje módy"}), 400
+
+    # Kontrola kompatibility
+    server_loader = get_server_loader(server)
+    server_mc_version = server.build_version.mc_version if server.build_version else None
+    
+    if mod.loader and mod.loader != server_loader:
+        return jsonify({"error": f"Mod je pro {mod.loader}, ale server je {server_loader}"}), 400
+        
+    if (mod.minecraft_version and server_mc_version and 
+        mod.minecraft_version != server_mc_version):
+        # Zkontrolujeme zda mod podporuje serverovou verzi v seznamu
+        try:
+            supported_versions = json.loads(mod.minecraft_versions) if mod.minecraft_versions else []
+            if server_mc_version not in supported_versions:
+                return jsonify({"error": f"Mod nepodporuje Minecraft {server_mc_version}"}), 400
+        except json.JSONDecodeError:
+            return jsonify({"error": f"Mod je pro {mod.minecraft_version}, ale server je {server_mc_version}"}), 400
 
     # Kontrola duplicity
     if mod in server.mods:
         return jsonify({"error": "Mod already installed"}), 400
 
     try:
-        server_mods_dir = os.path.join(BASE_FORGE_MODS_PATH, server.name, "mods")
+        # Cesta k mods složce serveru
+        server_mods_dir = os.path.join(BASE_SERVERS_PATH, server.name, "minecraft-server", "mods")
         os.makedirs(server_mods_dir, exist_ok=True)
 
         dest_path = os.path.join(server_mods_dir, os.path.basename(mod.file_path))
@@ -175,7 +336,7 @@ def install_mod():
             user_id=current_user.id,
             action="install",
             version_to=mod.version,
-            notes=f"Installed to server {server.name}"
+            notes=f"Installed to server {server.name} ({server_loader})"
         )
         db.session.add(log_entry)
 
@@ -185,7 +346,6 @@ def install_mod():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-
 
 @mods_api.route("/api/mods/uninstall", methods=["POST"])
 @login_required
@@ -204,14 +364,14 @@ def uninstall_mod():
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    if not is_forge_server(server):
-        return jsonify({"error": "Server není Forge build"}), 400
+    if not is_mod_server(server):
+        return jsonify({"error": "Server nepodporuje módy"}), 400
 
     if mod not in server.mods:
         return jsonify({"error": "Mod not installed"}), 400
 
     try:
-        server_mods_dir = os.path.join(BASE_FORGE_MODS_PATH, server.name, "mods")
+        server_mods_dir = os.path.join(BASE_SERVERS_PATH, server.name, "minecraft-server", "mods")
         mod_path = os.path.join(server_mods_dir, os.path.basename(mod.file_path))
 
         if os.path.exists(mod_path):
@@ -240,7 +400,6 @@ def uninstall_mod():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-
 @mods_api.route("/api/mods/check-updates")
 @login_required
 def check_mod_updates():
@@ -252,18 +411,17 @@ def check_mod_updates():
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    if not is_forge_server(server):
-        return jsonify({"error": "Server není Forge build"}), 400
+    if not is_mod_server(server):
+        return jsonify({"error": "Server nepodporuje módy"}), 400
 
     updates = []
     for mod in server.mods:
-        # TODO: implementace Modrinth API – podobně jako u pluginů
-        # Zatím vracíme prázdné
+        # TODO: implementace Modrinth API pro kontrolu aktualizací
         updates.append({
             "mod_id": mod.id,
             "name": mod.display_name or mod.name,
             "current_version": mod.version or "unknown",
-            "new_version": "",  # ← místo None dát prázdný string
+            "new_version": "",
             "changelog": ""
         })
 
@@ -286,17 +444,36 @@ def install_mod_from_url():
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    if not is_forge_server(server):
-        return jsonify({"error": "Server není Forge build"}), 400
+    # ROZŠÍŘENÍ - povolíme instalaci i pluginům, pokud server podporuje módy
+    if not is_mod_server(server):
+        return jsonify({"error": "Server nepodporuje módy"}), 400
 
     try:
+        # Získání informací o projektu
+        slug, project_type = extract_modrinth_slug(url)  # <- upravená funkce
+        info = get_modrinth_info(slug)  # <- upravená funkce
+        
+        # Najdeme konkrétní verzi podle download URL
+        selected_version = None
+        for version in info["versions"]:
+            for file in version.get("files", []):
+                if file.get("url") == download_url:
+                    selected_version = version
+                    break
+            if selected_version:
+                break
+
+        if not selected_version:
+            return jsonify({"success": False, "error": "Nepodařilo se najít informace o verzi"}), 400
+
+        # Stažení souboru
         r = requests.get(download_url, timeout=15, stream=True)
         r.raise_for_status()
 
         filename = os.path.basename(download_url)
 
-        # centrální archiv všech modů
-        central_path = os.path.join(BASE_FORGE_MODS_PATH, "mods", "core", filename)
+        # Uložení do centrálního úložiště
+        central_path = os.path.join(BASE_MODS_PATH, "mods", "core", filename)
         os.makedirs(os.path.dirname(central_path), exist_ok=True)
 
         with open(central_path, "wb") as f:
@@ -304,27 +481,41 @@ def install_mod_from_url():
                 if chunk:
                     f.write(chunk)
 
-        # ⚡️ skutečná složka daného serveru
-        server_mods_dir = os.path.join(BASE_SERVERS_PATH, server.name, "minecraft-server", "mods")
-        os.makedirs(server_mods_dir, exist_ok=True)
-        dest_path = os.path.join(server_mods_dir, filename)
-        shutil.copy2(central_path, dest_path)
+        # Příprava metadat
+        loaders = selected_version.get("loaders", [])
+        game_versions = selected_version.get("game_versions", [])
+        primary_loader = loaders[0] if loaders else "unknown"
+        primary_mc_version = game_versions[0] if game_versions else "unknown"
 
-        # zápis do DB
+        # Zápis do DB s ROZŠÍŘENÝMI metadaty
         mod = Mod(
-            name=os.path.splitext(filename)[0],
-            display_name=os.path.splitext(filename)[0],
-            version="unknown",
-            author="unknown",
-            description="",
-            file_path=central_path,  # originální uložená cesta
+            name=slug,
+            display_name=info["project"].get("title") or slug,
+            version=selected_version.get("version_number", "unknown"),
+            author=", ".join([member.get("user", {}).get("username", "unknown") for member in info.get("team", [])]),
+            description=info["project"].get("description", ""),
+            file_path=central_path,
             download_url=download_url,
             source="modrinth",
+            category=", ".join(info["project"].get("categories", [])),
+            loader=primary_loader,
+            minecraft_version=primary_mc_version,
+            supported_loaders=json.dumps(loaders),
+            minecraft_versions=json.dumps(game_versions),
+            # NOVÁ POLÍČKA:
+            can_be_plugin=info["can_be_plugin"],
+            project_type=info["project_type"],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
         db.session.add(mod)
         db.session.flush()
+
+        # Instalace na server - vždy do mods složky (protože používáme mods API)
+        server_mods_dir = os.path.join(BASE_SERVERS_PATH, server.name, "minecraft-server", "mods")
+        os.makedirs(server_mods_dir, exist_ok=True)
+        dest_path = os.path.join(server_mods_dir, filename)
+        shutil.copy2(central_path, dest_path)
 
         db.session.execute(
             server_mods.insert().values(
@@ -338,14 +529,13 @@ def install_mod_from_url():
         db.session.commit()
         return jsonify({
             "success": True,
-            "message": f"Mod {filename} byl nainstalován na server {server.name}"
+            "message": f"{info['project_type'].title()} {mod.display_name} byl nainstalován na server {server.name}",
+            "project_type": info["project_type"]
         })
 
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-
-
 
 @mods_api.route("/api/mods/get-download-info", methods=["POST"])
 @login_required
@@ -358,7 +548,8 @@ def get_mod_download_info():
         return jsonify({"success": False, "error": "Chybí URL"}), 400
 
     try:
-        slug = extract_modrinth_slug(url)
+        # Extrahujeme slug a typ projektu
+        slug, project_type = extract_modrinth_slug(url)
         info = get_modrinth_info(slug)
 
         # Najdeme nejlepší verzi podle serveru
@@ -368,33 +559,40 @@ def get_mod_download_info():
         if server_id:
             server = Server.query.get(server_id)
             if server and server.build_version:
-                preferred_loader = server.build_version.build_type.name.lower()
+                preferred_loader = get_server_loader(server)
                 preferred_version = server.build_version.mc_version
 
         best_version = pick_best_version(info["versions"], preferred_loader, preferred_version)
 
-        if best_version:
-            download_url = best_version["files"][0]["url"]
+        if not best_version:
+            return jsonify({
+                "success": False, 
+                "error": f"Nenalezena kompatibilní verze pro {preferred_loader} {preferred_version}"
+            }), 404
 
-            # zkontrolujeme client/server side na úrovni projektu
-            client_side = info["project"].get("client_side", "unknown")
-            server_side = info["project"].get("server_side", "unknown")
+        # Najdeme primární soubor
+        primary_file = None
+        for file in best_version.get("files", []):
+            if file.get("primary", False):
+                primary_file = file
+                break
+        if not primary_file and best_version.get("files"):
+            primary_file = best_version["files"][0]
+            
+        if not primary_file:
+            return jsonify({"success": False, "error": "Žádný soubor k stažení"}), 404
 
-            warning = ""
-            if server_side == "unsupported":
-                warning = "⚠️ Tento mod je pouze client-side a na serveru nebude fungovat!"
+        download_url = primary_file["url"]
+        loaders = best_version.get("loaders", [])
+        mc_versions = best_version.get("game_versions", [])
 
-            loaders = best_version.get("loaders", [])
-            mc_versions = best_version.get("game_versions", [])
-
-            if preferred_loader and preferred_loader not in loaders:
-                compatible = False
-                reason = f"Mod nepodporuje loader '{preferred_loader}'"
-            elif preferred_version and preferred_version not in mc_versions:
-                compatible = False
-                reason = f"Mod nepodporuje Minecraft verzi '{preferred_version}'"
-        else:
-            return jsonify({"success": False, "error": "Žádné verze nenačteny"}), 404
+        # Kontrola kompatibility
+        if preferred_loader and preferred_loader not in loaders:
+            compatible = False
+            reason = f"Mod nepodporuje loader '{preferred_loader}'. Dostupné: {', '.join(loaders)}"
+        elif preferred_version and preferred_version not in mc_versions:
+            compatible = False
+            reason = f"Mod nepodporuje Minecraft verzi '{preferred_version}'. Dostupné: {', '.join(mc_versions)}"
 
         return jsonify({
             "success": True,
@@ -404,18 +602,20 @@ def get_mod_download_info():
                 "latest_version": {
                     "version_number": best_version.get("version_number"),
                     "changelog": best_version.get("changelog"),
-                    "loaders": best_version.get("loaders", []),
-                    "game_versions": best_version.get("game_versions", []),
-                    "client_side": client_side,
-                    "server_side": server_side,
+                    "loaders": loaders,
+                    "game_versions": mc_versions,
+                    "project_type": info["project_type"]
                 }
             },
             "compatible": compatible,
             "reason": reason,
-            "warning": warning,   # 👈 nové pole pro varování
             "expected_loader": preferred_loader,
             "expected_version": preferred_version,
-})
+            "project_type": info["project_type"],
+            "can_be_plugin": info["can_be_plugin"]
+        })
 
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": f"Neočekávaná chyba: {str(e)}"}), 500

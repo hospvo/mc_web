@@ -11,10 +11,110 @@ function setupBackButton() {
     });
 }
 
+// Funkce pro detekci typu serveru
+function getServerBuildType() {
+    const pathParts = window.location.pathname.split('/');
+    const serverId = pathParts[2];
+    return localStorage.getItem(`server_${serverId}_build_type`) || 'UNKNOWN';
+}
+
+function isModServer(buildType) {
+    const modBuilds = [
+        'FABRIC', 'FORGE', 'NEOFORGE', 'QUILT', 'BABRIC', 'BTA',
+        'JAVA_AGENT', 'LEGACY_FABRIC', 'LITELOADER', 'MODLOADER',
+        'NILLOADER', 'ORNITHE', 'RIFT', 'RISUGAMI'
+    ];
+    return modBuilds.includes(buildType.toUpperCase());
+}
+
+function isPluginServer(buildType) {
+    const pluginBuilds = [
+        'BUKKIT', 'FOLIA', 'PAPER', 'PURPUR', 'SPIGOT', 'SPONGE'
+    ];
+    return pluginBuilds.includes(buildType.toUpperCase());
+}
+
+// Hlavní funkce pro správu zobrazení modů/pluginů
+async function manageServerComponents() {
+    const serverId = getCurrentServerId();
+    let buildType;
+    
+    try {
+        const response = await fetch(`/api/server/build-type?server_id=${serverId}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        buildType = data.build_type;
+        
+        // Uložit do localStorage pro budoucí použití
+        localStorage.setItem(`server_${serverId}_build_type`, data.build_type);
+    } catch (error) {
+        console.error('Chyba při získávání build type:', error);
+        buildType = getServerBuildType(); // fallback na localStorage
+    }
+    
+    const modsSection = document.querySelector('.mods-quickview');
+    const pluginsSection = document.querySelector('.plugins-quickview');
+
+    if (isModServer(buildType)) {
+        // Zobrazit pouze módy
+        if (modsSection) modsSection.style.display = 'block';
+        if (pluginsSection) pluginsSection.style.display = 'none';
+        
+        // Načíst módy
+        try {
+            await loadInstalledModsQuickview();
+        } catch (error) {
+            console.error('Chyba při načítání modů:', error);
+        }
+    } else if (isPluginServer(buildType)) {
+        // Zobrazit pouze pluginy
+        if (modsSection) modsSection.style.display = 'none';
+        if (pluginsSection) pluginsSection.style.display = 'block';
+        
+        // Načíst pluginy
+        try {
+            await loadQuickViewPlugins();
+        } catch (error) {
+            console.error('Chyba při načítání pluginů:', error);
+        }
+    } else {
+        // Neznámý build - skrýt obojí
+        console.warn('Neznámý typ buildu:', buildType);
+        if (modsSection) modsSection.style.display = 'none';
+        if (pluginsSection) pluginsSection.style.display = 'none';
+    }
+}
+
+// Načtení typu serveru při inicializaci
+async function loadServerBuildType() {
+    try {
+        const response = await fetch(`/api/server/build-type?server_id=${getCurrentServerId()}`);
+        const data = await response.json();
+        
+        // Uložit do localStorage pro budoucí použití
+        localStorage.setItem(`server_${getCurrentServerId()}_build_type`, data.build_type);
+        
+        // Spravovat zobrazení komponent
+        manageServerComponents();
+        
+    } catch (error) {
+        console.error('Chyba při načítání typu serveru:', error);
+        // Fallback - zkusit detekovat z URL
+        manageServerComponents();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const serverId = getCurrentServerId();
     setupBackButton();
     updateStatus();
+
+    // Načíst typ serveru a podle toho zobrazit komponenty
+    loadServerBuildType();
 
     // Funkce pro aktualizaci stavu
     async function updateStatus() {
@@ -88,7 +188,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-
     function arraysEqual(a, b) {
         if (a.length !== b.length) return false;
         for (let i = 0; i < a.length; i++) {
@@ -96,8 +195,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         return true;
     }
-
-
 
     // Start serveru
     document.getElementById('start-btn').addEventListener('click', async () => {
@@ -196,7 +293,6 @@ function loadLogs() {
             console.error('Chyba při načítání logů:', error);
         });
 }
-
 
 setInterval(loadLogs, 3000);
 loadLogs();
@@ -481,14 +577,29 @@ async function removeAdmin(user_id) {
 
 document.addEventListener('DOMContentLoaded', loadAdminPanel);
 
-
 async function loadQuickViewPlugins() {
     const serverId = getCurrentServerId();
     try {
         const response = await fetch(`/api/plugins/installed?server_id=${serverId}`);
-        const plugins = await response.json();
-
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        // Ošetření případu, kdy API vrátí chybu místo pole pluginů
+        if (!Array.isArray(result)) {
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            throw new Error('Neplatná odpověď ze serveru');
+        }
+        
+        const plugins = result;
         const list = document.getElementById('installed-plugins-quickview');
+        if (!list) return;
+        
         list.innerHTML = '';
 
         if (plugins.length === 0) {
@@ -518,32 +629,48 @@ async function loadQuickViewPlugins() {
         }
     } catch (error) {
         console.error('Chyba při načítání pluginů:', error);
+        const list = document.getElementById('installed-plugins-quickview');
+        if (list) {
+            list.innerHTML = `
+                <div class="quickview-plugin-item error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Chyba při načítání pluginů: ${error.message}
+                </div>
+            `;
+        }
     }
 }
-
-// Přesměrování na správu pluginů
-document.getElementById('manage-plugins-btn').addEventListener('click', () => {
-    const serverId = getCurrentServerId();
-    window.location.href = `/server/${serverId}/plugins`;
-});
-
-// Načtěte pluginy při startu
-document.addEventListener('DOMContentLoaded', loadQuickViewPlugins);
 
 
 async function loadInstalledModsQuickview() {
     try {
         const response = await fetch(`/api/mods/installed?server_id=${getCurrentServerId()}`);
-        const mods = await response.json();
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        // Ošetření případu, kdy API vrátí chybu místo pole modů
+        if (!Array.isArray(result)) {
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            throw new Error('Neplatná odpověď ze serveru');
+        }
+        
+        const mods = result;
         const list = document.getElementById('installed-mods-quickview');
+        if (!list) return;
+        
         list.innerHTML = '';
         
         if (mods.length === 0) {
             list.innerHTML = `
                 <div class="no-mods">
                     <i class="fas fa-box-open"></i>
-                    <p>Žádné mody nenalezeny</p>
+                    <p>Žádné módy nenalezeny</p>
                 </div>
             `;
             return;
@@ -578,24 +705,26 @@ async function loadInstalledModsQuickview() {
     } catch (error) {
         console.error('Chyba při načítání modů:', error);
         const list = document.getElementById('installed-mods-quickview');
-        list.innerHTML = `
-            <div class="no-mods">
-                <i class="fas fa-exclamation-triangle"></i>
-                <p>Chyba při načítání modů</p>
-            </div>
-        `;
+        if (list) {
+            list.innerHTML = `
+                <div class="no-mods">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Chyba při načítání modů: ${error.message}</p>
+                </div>
+            `;
+        }
     }
 }
 
-// Přidání event listeneru pro tlačítko správy modů
 document.addEventListener('DOMContentLoaded', function() {
-    const manageModsBtn = document.getElementById('manage-mods-btn');
-    if (manageModsBtn) {
-        manageModsBtn.addEventListener('click', () => {
-            window.location.href = `/server/${getCurrentServerId()}/mods`;
-        });
-    }
+    // ... existující kód ...
     
-    // Načtení modů při inicializaci
-    loadInstalledModsQuickview();
+    // Přesměrování na správu modů/pluginů
+    document.getElementById('manage-mods-btn').addEventListener('click', () => {
+        window.location.href = `/server/${getCurrentServerId()}/mods`;
+    });
+    
+    document.getElementById('manage-plugins-btn').addEventListener('click', () => {
+        window.location.href = `/server/${getCurrentServerId()}/plugins`;
+    });
 });

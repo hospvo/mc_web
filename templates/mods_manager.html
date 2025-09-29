@@ -67,43 +67,44 @@
         </div>
     </div>
 
-<div id="manual-mods" class="tab-content">
-    <div class="mod-manual-download">
-        <h3 class="mod-source-heading">
-            <img src="{{ url_for('static', filename='img/modrinth_logos.jpeg') }}" 
-                alt="Modrinth Logo" class="modrinth-logo">
-            <span>Modrinth Mod Installer</span>
-        </h3>
-        <p>Zadejte URL modu z Modrinth pro jeho stažení a instalaci:</p>
-        
-        <div class="manual-download-form">                
-            <div class="form-group">
-                <label for="mod-url-input">URL modu z Modrinth</label>
-                <input type="text" id="mod-url-input" class="form-control" 
-                       placeholder="https://modrinth.com/mod/nazev-modu">
-            </div>
-            
-            <button id="get-download-link-btn" class="btn btn-primary">
-                <i class="fas fa-link"></i> Získat download link
-            </button>
-            
-            <div id="result-display" class="result-display">
-                <div class="result-content"></div>
-                <div class="result-actions">
-                    <button id="install-from-url-btn" class="btn btn-success">
-                        <i class="fas fa-download"></i> Nainstalovat mod
-                    </button>
+    <div id="manual-mods" class="tab-content">
+        <div class="mod-manual-download">
+            <h3 class="mod-source-heading">
+                <img src="{{ url_for('static', filename='img/modrinth_logos.jpeg') }}" alt="Modrinth Logo"
+                    class="modrinth-logo">
+                <span>Modrinth Mod Installer</span>
+            </h3>
+            <p>Zadejte URL modu z Modrinth pro jeho stažení a instalaci:</p>
+
+            <div class="manual-download-form">
+                <div class="form-group">
+                    <label for="mod-url-input">URL modu z Modrinth</label>
+                    <input type="text" id="mod-url-input" class="form-control"
+                        placeholder="https://modrinth.com/mod/nazev-modu">
+                </div>
+
+                <button id="get-download-link-btn" class="btn btn-primary">
+                    <i class="fas fa-link"></i> Získat download link
+                </button>
+
+                <div id="result-display" class="result-display">
+                    <div class="result-content"></div>
+                    <div class="result-actions">
+                        <button id="install-from-url-btn" class="btn btn-success">
+                            <i class="fas fa-download"></i> Nainstalovat mod
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
     <div class="mods-status-bar">
         <span id="mods-status-message">Připraveno</span>
         <div class="mods-stats">
-            <span><i class="fas fa-cube"></i> <span id="mods-count">0</span> modů</span>
-            <span><i class="fas fa-download"></i> <span id="updates-count">0</span> aktualizací</span>
+            <span><i class="fas fa-cube"></i> <span id="mods-count">0</span> nainstalováno</span>
+            <span><i class="fas fa-download"></i> <span id="available-mods-count">0</span> dostupných</span>
+            <span><i class="fas fa-sync-alt"></i> <span id="updates-count">0</span> aktualizací</span>
         </div>
     </div>
 </div>

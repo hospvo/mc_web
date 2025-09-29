@@ -132,23 +132,49 @@ async function loadAvailableMods() {
         const searchTerm = document.getElementById('mods-search-input').value.toLowerCase();
         const category = document.getElementById('mods-filter-category').value;
 
-        const response = await fetch(`/api/mods/available?search=${searchTerm}&category=${category}`);
-        const mods = await response.json();
+        const response = await fetch(`/api/mods/available?search=${searchTerm}&category=${category}&server_id=${currentServerId}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        // OŠETŘENÍ - pokud API vrátí chybu místo pole
+        if (!Array.isArray(result)) {
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            throw new Error('Neplatná odpověď ze serveru');
+        }
 
-        // Získat nainstalované mody pro kontrolu
-        const installedResponse = await fetch(`/api/mods/installed?server_id=${currentServerId}`);
-        const installedMods = await installedResponse.json();
+        const availableMods = result;
+        
+        // ZÍSKEJ NAINSTALOVANÉ MODY PRO KONTROLU
+        let installedMods = [];
+        try {
+            const installedResponse = await fetch(`/api/mods/installed?server_id=${currentServerId}`);
+            if (installedResponse.ok) {
+                const installedResult = await installedResponse.json();
+                installedMods = Array.isArray(installedResult) ? installedResult : [];
+            }
+        } catch (error) {
+            console.error('Chyba při načítání nainstalovaných modů:', error);
+            installedMods = [];
+        }
+        
         const installedIds = installedMods.map(p => p.id);
 
         const list = document.getElementById('available-mods-list');
         list.innerHTML = '';
 
-        if (mods.length === 0) {
-            list.innerHTML = '<div class="mod-item no-mods">Žádné mody nenalezeny</div>';
+        if (availableMods.length === 0) {
+            list.innerHTML = '<div class="mod-item no-mods">Žádné kompatibilní módy nenalezeny</div>';
+            updateModsCount(installedMods.length, 0);
             return;
         }
 
-        mods.forEach(mod => {
+        availableMods.forEach(mod => {
             const isInstalled = installedIds.includes(mod.id);
 
             const modItem = document.createElement('div');
@@ -158,12 +184,12 @@ async function loadAvailableMods() {
                 <div class="mod-version">${mod.version}</div>
                 <div class="mod-description">${mod.description || 'Žádný popis'}</div>
                 <div class="mod-actions">
-                    ${isInstalled ?
-                    '<span class="already-installed">Nainstalováno</span>' :
-                    `<button class="mod-btn install" data-mod-id="${mod.id}">
+                    ${isInstalled ? 
+                        '<span class="already-installed">Nainstalováno</span>' : 
+                        `<button class="mod-btn install" data-mod-id="${mod.id}">
                             <i class="fas fa-download"></i> Nainstalovat
                         </button>`
-                }
+                    }
                 </div>
             `;
             list.appendChild(modItem);
@@ -174,9 +200,22 @@ async function loadAvailableMods() {
             btn.addEventListener('click', () => installMod(btn.dataset.modId));
         });
 
-        updateModsCount(installedMods.length, mods.length);
+        updateModsCount(installedMods.length, availableMods.length);
+        
     } catch (error) {
+        console.error('Chyba při načítání dostupných modů:', error);
         showError('Chyba při načítání dostupných modů: ' + error.message);
+        
+        const list = document.getElementById('available-mods-list');
+        if (list) {
+            list.innerHTML = `
+                <div class="mod-item error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Chyba při načítání modů: ${error.message}
+                </div>
+            `;
+        }
+        updateModsCount(0, 0);
     }
 }
 
@@ -311,9 +350,13 @@ async function updateMod(modId) {
     }
 }
 
-function updateModsCount(installedCount, updatesCount) {
-    document.getElementById('mods-count').textContent = installedCount;
-    document.getElementById('updates-count').textContent = updatesCount;
+function updateModsCount(installedCount, availableCount) {
+    // Aktualizuj počty v UI - přidej tyto elementy do HTML pokud je nemáš
+    const modsCountElement = document.getElementById('mods-count');
+    const availableCountElement = document.getElementById('available-mods-count');
+    
+    if (modsCountElement) modsCountElement.textContent = installedCount;
+    if (availableCountElement) availableCountElement.textContent = availableCount;
 }
 
 function showSuccess(message) {

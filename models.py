@@ -160,8 +160,16 @@ class Mod(db.Model):
     download_url = db.Column(db.String(500))
     source = db.Column(db.String(50), default="modrinth")         # modrinth / curseforge / manuál
     plugin_type = db.Column(db.String(50), default="optional")    # core/optional/deprecated
+    can_be_plugin = db.Column(db.Boolean, default=None, nullable=True)  # None = čistý mod
+    project_type = db.Column(db.String(20), default="mod")  # mod, plugin, hybrid
     category = db.Column(db.String(50))                           # např. "tech", "magic"
-    compatible_with = db.Column(db.String(100))                   # seznam verzí MC/Forge
+    
+    # NOVÉ POLÍČKA - místo compatible_with
+    minecraft_versions = db.Column(db.Text)                       # JSON seznam podporovaných MC verzí
+    supported_loaders = db.Column(db.Text)                        # JSON seznam podporovaných loaderů
+    loader = db.Column(db.String(50))                             # konkrétní loader tohoto souboru (fabric/forge/neoforge)
+    minecraft_version = db.Column(db.String(20))                  # konkrétní MC verze tohoto souboru
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
