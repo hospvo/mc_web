@@ -35,7 +35,10 @@
       {% if messages %}
         <div class="flash-messages">
           {% for category, message in messages %}
-            <div class="flash {{ category }}">{{ message }}</div>
+            <div class="flash {{ category }}">
+              <i class="fas fa-{% if category == 'error' %}exclamation-triangle{% elif category == 'success' %}check-circle{% else %}info-circle{% endif %}"></i>
+              {{ message }}
+            </div>
           {% endfor %}
         </div>
       {% endif %}
@@ -48,5 +51,9 @@
     <p>Kontakt: info@tvujhosting.cz | <a href="#"><i class="fab fa-discord"></i> Discord</a></p>
     <p>&copy; 2025 Minecraft Hosting</p>
   </footer>
+
+  <!-- Načtení JavaScriptů -->
+  <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+  {% block extra_js %}{% endblock %}
 </body>
 </html>

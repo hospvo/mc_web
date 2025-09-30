@@ -8,26 +8,40 @@
 {% endblock %}
 
 {% block content %}
-<div class="auth-container">
-  <div class="auth-card">
-    <h2><i class="fas fa-sign-in-alt"></i> Přihlášení</h2>
-    <form method="POST">
-      <div class="form-group">
-        <label for="username"><i class="fas fa-user"></i> Uživatelské jméno</label>
-        <input type="text" id="username" name="username" required>
+  <div class="auth-container">
+    <div class="auth-card" id="auth-card">
+      <h2><i class="fas fa-sign-in-alt"></i> Přihlášení</h2>
+      
+      <!-- Zpráva o chybě -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="auth-message {{ category }}">
+              <i class="fas fa-{% if category == 'error' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST" id="login-form">
+        <div class="form-group">
+          <label for="username"><i class="fas fa-user"></i> Uživatelské jméno</label>
+          <input type="text" id="username" name="username" required 
+                 value="{{ request.form.username if request.form }}">
+        </div>
+        <div class="form-group">
+          <label for="password"><i class="fas fa-lock"></i> Heslo</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="button full-width" id="submit-btn">
+          <i class="fas fa-sign-in-alt"></i> Přihlásit se
+        </button>
+      </form>
+      <div class="auth-links">
+        <a href="{{ url_for('auth.register') }}">Nemáte účet? Zaregistrujte se</a>
+        <a href="{{ url_for('index') }}">Zpět na hlavní stránku</a>
       </div>
-      <div class="form-group">
-        <label for="password"><i class="fas fa-lock"></i> Heslo</label>
-        <input type="password" id="password" name="password" required>
-      </div>
-      <button type="submit" class="button full-width" id="submit-btn">
-        <i class="fas fa-sign-in-alt"></i> Přihlásit se
-      </button>
-    </form>
-    <div class="auth-links">
-      <a href="{{ url_for('auth.register') }}">Nemáte účet? Zaregistrujte se</a>
-      <a href="{{ url_for('index') }}">Zpět na hlavní stránku</a>
     </div>
   </div>
-</div>
 {% endblock %}

@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_user, logout_user, login_required
 from models import db, User
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash 
 
 auth_blueprint = Blueprint('auth', __name__)
 
@@ -29,22 +29,20 @@ def register():
 @auth_blueprint.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-
-        # Hledáme uživatele v databázi
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
         user = User.query.filter_by(username=username).first()
-
+        
         if user and check_password_hash(user.password, password):
-            print("Uživatel nalezen a heslo je správné.")
-            print("is_active:", user.is_active)
             login_user(user)
-            next_page = request.args.get('next')
-            print("Redirecting to:", next_page)
+            flash('Úspěšně přihlášen!', 'success')
             return redirect(url_for('dashboard'))
         else:
-            print("Neplatné přihlášení.")
-
+            # Lepší zpětná vazba
+            flash('Neplatné uživatelské jméno nebo heslo', 'error')
+            return render_template('login.html')  # Zachovat vyplněné údaje
+    
     return render_template('login.html')
 
 # Odhlášení
