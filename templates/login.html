@@ -3,30 +3,31 @@
 {% block title %}Přihlášení{% endblock %}
 
 {% block extra_css %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">¨
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 {% endblock %}
 
 {% block content %}
-  <div class="auth-container">
-    <div class="auth-card">
-      <h2><i class="fas fa-sign-in-alt"></i> Přihlášení</h2>
-      <form method="POST">
-        <div class="form-group">
-          <label for="username"><i class="fas fa-user"></i> Uživatelské jméno</label>
-          <input type="text" id="username" name="username" required>
-        </div>
-        <div class="form-group">
-          <label for="password"><i class="fas fa-lock"></i> Heslo</label>
-          <input type="password" id="password" name="password" required>
-        </div>
-        <button type="submit" class="button full-width">
-          <i class="fas fa-sign-in-alt"></i> Přihlásit se
-        </button>
-      </form>
-      <div class="auth-links">
-        <a href="{{ url_for('auth.register') }}">Nemáte účet? Zaregistrujte se</a>
-        <a href="{{ url_for('index') }}">Zpět na hlavní stránku</a>
+<div class="auth-container">
+  <div class="auth-card">
+    <h2><i class="fas fa-sign-in-alt"></i> Přihlášení</h2>
+    <form method="POST">
+      <div class="form-group">
+        <label for="username"><i class="fas fa-user"></i> Uživatelské jméno</label>
+        <input type="text" id="username" name="username" required>
       </div>
+      <div class="form-group">
+        <label for="password"><i class="fas fa-lock"></i> Heslo</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="button full-width" id="submit-btn">
+        <i class="fas fa-sign-in-alt"></i> Přihlásit se
+      </button>
+    </form>
+    <div class="auth-links">
+      <a href="{{ url_for('auth.register') }}">Nemáte účet? Zaregistrujte se</a>
+      <a href="{{ url_for('index') }}">Zpět na hlavní stránku</a>
     </div>
   </div>
+</div>
 {% endblock %}
