@@ -3,34 +3,46 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-  <div class="dashboard-container">
-    <div class="welcome-banner">
-      <h1><i class="fas fa-server"></i> Vítejte, {{ username }}!</h1>
-      <p>Zde můžete spravovat své servery</p>
-    </div>
+<div class="dashboard-container">
+  <div class="welcome-banner">
+    <h1><i class="fas fa-server"></i> Vítejte, {{ username }}!</h1>
+    <p>Zde můžete spravovat své servery</p>
+  </div>
 
-
-<section id="my-servers">
-  <h2><i class="fas fa-list"></i> Moje servery</h2>
-  {% if servers %}
+  <section id="my-servers">
+    <h2><i class="fas fa-list"></i> Moje servery</h2>
+    {% if servers %}
     <div class="server-grid">
       {% for server in servers %}
-        <div class="server-card online"> <!-- stav zatím není ve modelu -->
+      <div class="server-card">
+        <!-- ZACHOVÁN GRADIENT HEADERU -->
+        <div class="server-header">
           <h3>{{ server.name }}</h3>
-          <p><i class="fas fa-network-wired"></i> IP adresa: server # můžeš později přidat server.ip, pokud to doplníš do modelu -->
-          <div class="server-status">
-            <a href="{{ url_for('server_panel', server_id=server.id) }}" class="button small">Spravovat</a>
+          <div class="server-status" data-server-id="{{ server.id }}">
+            <span class="status-indicator status-loading"></span>
+            <span class="status-text">Načítám...</span>
           </div>
         </div>
+
+        <p><i class="fas fa-microchip"></i> Loader: {{ server.loader or '-' }}</p>
+        <p><i class="fas fa-cube"></i> Verze: {{ server.mc_version or '-' }}</p>
+        <p><i class="fas fa-network-wired"></i> IP: {{ server.ip }}:{{ server.port }}</p>
+
+        <div class="server-actions">
+          <a href="{{ url_for('server_panel', server_id=server.id) }}" class="button small">Spravovat</a>
+        </div>
+      </div>
       {% endfor %}
     </div>
-  {% else %}
+    {% else %}
     <div class="no-servers">
       <i class="fas fa-server"></i>
       <p>Zatím nemáte žádné servery</p>
       <a href="{{ url_for('index') }}#objednat" class="button">Objednat server</a>
     </div>
-  {% endif %}
-</section>
-  </div>
+    {% endif %}
+  </section>
+</div>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 {% endblock %}

@@ -6,6 +6,7 @@ import os
 from mc_server import server_api
 from routes_mods import mods_api
 from models import db, User, Server
+import requests
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'tajnyklic'
@@ -54,7 +55,25 @@ def dashboard():
     # Sloučíme obě sady
     all_servers = list(owned) + admin_only
 
-    return render_template("dashboard.html", username=user.username, servers=all_servers)
+    ip_address = requests.get("https://api.ipify.org").text
+
+    # Obohatíme data pro šablonu
+    servers_data = []
+    for s in all_servers:
+        servers_data.append({
+            "id": s.id,
+            "name": s.name,
+            "loader": s.build_version.build_type.name if s.build_version else None,
+            "mc_version": s.build_version.mc_version if s.build_version else None,
+            "ip": ip_address,
+            "port": s.server_port
+        })
+
+    return render_template(
+        "dashboard.html",
+        username=user.username,
+        servers=servers_data
+    )
 
 @app.route('/server/<int:server_id>')
 @login_required

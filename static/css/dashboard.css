@@ -1,4 +1,4 @@
-/* Server Panel */
+/* Server Panel - opravené s lepší kontrastností */
 .server-panel {
     background: white;
     border-radius: 10px;
@@ -7,37 +7,201 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.status-indicator {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-right: 8px;
+.server-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0.8rem;
 }
 
-.status-indicator.online { background-color: #4CAF50; }
-.status-indicator.offline { background-color: #f44336; }
+.server-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #1f2937; /* Tmavě šedá - lepší kontrast */
+    font-weight: 600;
+}
+
+.server-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-online {
+    background-color: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.status-offline {
+    background-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.status-loading {
+    background-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
 
 .server-actions {
     display: flex;
     gap: 0.5rem;
-    margin-top: 1rem;
+    margin-top: 1.2rem;
 }
 
 .btn {
-    padding: 0.5rem 1rem;
+    padding: 0.6rem 1.2rem;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     color: white;
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
 }
 
-.btn-success { background-color: #4CAF50; }
-.btn-warning { background-color: #ff9800; }
-.btn-danger { background-color: #f44336; }
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
 
+.btn-success { 
+    background-color: #10b981; 
+}
+.btn-success:hover { 
+    background-color: #059669;
+}
 
+.btn-warning { 
+    background-color: #f59e0b; 
+}
+.btn-warning:hover { 
+    background-color: #d97706;
+}
 
+.btn-danger { 
+    background-color: #ef4444; 
+}
+.btn-danger:hover { 
+    background-color: #dc2626;
+}
+
+.server-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.server-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+    transition: all 0.3s ease;
+}
+
+.server-card:hover {
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+/* DŮLEŽITÉ: Lepší kontrast pro text v server kartě */
+.server-card p {
+    margin: 0.7rem 0;
+    color: #374151; /* Středně šedá - mnohem lepší čitelnost */
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+.server-card p i {
+    width: 18px;
+    margin-right: 0.7rem;
+    color: #6b7280; /* Konzistentní barva ikon */
+}
+
+/* Speciální styl pro status text - aby byl více vidět */
+.server-status .status-text {
+    color: #1f2937; /* Tmavá barva pro status text */
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+/* Tlačítko Spravovat */
+.button.small {
+    display: inline-block;
+    padding: 0.6rem 1.2rem;
+    background-color: #4CAF50;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.button.small:hover {
+    background-color: #45a049;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.2);
+}
+
+/* Pro případ, že máš světlé pozadí - přidat kontrast */
+.dashboard-container {
+    background-color: #f8fafc; /* Velmi světle šedé pozadí pro lepší kontrast */
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+.welcome-banner {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.welcome-banner h1 {
+    margin: 0 0 0.5rem 0;
+    color: white;
+}
+
+.welcome-banner p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+#my-servers h2 {
+    color: #1f2937;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+}
+
+.no-servers {
+    text-align: center;
+    padding: 3rem;
+    color: #6b7280;
+}
+
+.no-servers i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #9ca3af;
+}

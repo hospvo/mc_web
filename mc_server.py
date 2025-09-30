@@ -1037,6 +1037,24 @@ def get_disk_usage_for_server(server_id):
 server_api = Blueprint('server_api', __name__)
 
 
+@server_api.route('/api/servers/status')
+@login_required
+def all_servers_status_api():
+    """Vrátí stavy všech serverů uživatele v jednom requestu"""
+    user = current_user
+    
+    # Získat všechny servery uživatele
+    owned = user.owned_servers
+    admin_only = user.admin_of_servers.filter(Server.owner_id != user.id).all()
+    all_servers = list(owned) + admin_only
+    
+    statuses = {}
+    for server in all_servers:
+        status = get_server_status(server.id)
+        statuses[server.id] = status
+    
+    return jsonify(statuses)
+
 # API endpoints
 @server_api.route('/api/server/status')
 @login_required
@@ -1056,6 +1074,25 @@ def server_status_api():
         status['player_names'] = []
     
     return jsonify(status)
+
+
+@server_api.route('/api/server/info')
+@login_required
+def get_server_info():
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+
+    server = Server.query.get(server_id)
+    if not server:
+        return jsonify({'error': 'Server not found'}), 404
+
+    return jsonify({
+        "server_loader": server.build_version.build_type.name,  # např. "Paper"
+        "mc_version": server.build_version.mc_version,          # např. "1.20.1"
+        "server_port": server.server_port                       # např. 25565
+    })
+    
 
 
 @server_api.route('/api/server/backups')
