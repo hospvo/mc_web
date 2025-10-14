@@ -702,14 +702,14 @@ def start_server(server_id):
         # Forge potřebuje jiné parametry
         if build_type == "FORGE":
             java_args = [
-                "java", "-Xmx6G", "-Xms3G",
+                "java", "-Xmx12G", "-Xms4G",
                 "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled",
                 "-XX:MaxGCPauseMillis=200", "-XX:+UnlockExperimentalVMOptions",
                 "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch",
                 "-jar", paths['server_jar'], "nogui"
             ]
         else:
-            java_args = ["java", "-Xmx4G", "-Xms2G", "-jar", paths['server_jar'], "nogui"]
+            java_args = ["java", "-Xmx8G", "-Xms4G", "-jar", paths['server_jar'], "nogui"]
 
         # Spuštění serveru
         process = subprocess.Popen(

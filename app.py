@@ -106,10 +106,12 @@ def server_mods(server_id):
     return render_template("mods_manager.html", server=server)
 
 if __name__ == '__main__':
+    from waitress import serve
     if not os.path.exists('db.sqlite3'):
         with app.app_context():
             db.create_all()
-    app.run(debug=True)
+    # Spuštění přes Waitress na všech IP, port 5000
+    serve(app, host="127.0.0.1", port=5000)
 
 
 
