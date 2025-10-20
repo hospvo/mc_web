@@ -1161,6 +1161,49 @@ def server_logs_api():
 
     return jsonify({"html": html_text})
 
+@server_api.route('/api/server/old-logs')
+@login_required
+def list_old_logs():
+    server_id = request.args.get('server_id')
+    paths = get_server_paths(server_id)
+    if not paths:
+        return jsonify([])
+
+    logs_dir = os.path.join(paths['server_path'], "logs")
+    if not os.path.exists(logs_dir):
+        return jsonify([])
+
+    logs = sorted(
+        [f for f in os.listdir(logs_dir) if f.endswith((".log", ".log.gz"))],
+        reverse=True
+    )
+    return jsonify(logs)
+
+
+@server_api.route('/api/server/old-logs/view')
+@login_required
+def view_old_log():
+    server_id = request.args.get('server_id')
+    filename = request.args.get('filename')
+    paths = get_server_paths(server_id)
+    if not paths or not filename:
+        abort(400)
+
+    log_path = os.path.join(paths['server_path'], "logs", filename)
+    if not os.path.exists(log_path):
+        abort(404)
+
+    # Pokud je soubor komprimovaný
+    if filename.endswith('.gz'):
+        import gzip
+        with gzip.open(log_path, 'rt', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+    else:
+        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+
+    return jsonify({"name": filename, "content": content})
+
 @server_api.route('/api/server/command', methods=['POST'])
 @login_required
 def send_command_api():
