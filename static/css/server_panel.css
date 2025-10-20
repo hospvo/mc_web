@@ -1,0 +1,796 @@
+/* server_panel.css - Styly specifické pro server panel */
+
+/* Hlavička server panelu */
+.server-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding: 15px 20px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #3498db 0%, #2ecc71 100%);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.server-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, 
+               rgba(52, 152, 219, 0.8) 0%, 
+               rgba(46, 204, 113, 0.8) 100%);
+    z-index: 0;
+}
+
+.server-header h3 {
+    margin: 0;
+    flex-grow: 1;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 600;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    position: relative;
+    z-index: 1;
+}
+
+#back-btn {
+    margin-right: 10px;
+    padding: 8px 15px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: white;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#back-btn:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+#back-btn i {
+    font-size: 0.9em;
+}
+
+/* Animace pro pozadí */
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.server-header {
+    background-size: 200% 200%;
+    animation: gradientShift 10s ease infinite;
+}
+
+/* Panel pro správu serveru */
+.server-panel {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+    transition: transform 0.2s ease-in-out;
+}
+
+.server-panel:hover {
+    transform: translateY(-5px);
+}
+
+.server-meta {
+    margin: 5px 0;
+}
+
+.meta-badge {
+    display: inline-block;
+    background-color: #2d3748;
+    color: #edf2f7;
+    padding: 3px 8px;
+    border-radius: 8px;
+    font-size: 0.9em;
+    margin-right: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+/* Indikátor stavu (online/offline) */
+.status-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    transition: background-color 0.3s ease;
+}
+
+.status-indicator.online { background-color: #4CAF50; }
+.status-indicator.offline { background-color: #f44336; }
+
+/* Akční tlačítka */
+.server-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn {
+    padding: 0.5rem 1.2rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: opacity 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.btn-success { background-color: #4CAF50; }
+.btn-warning { background-color: #ff9800; }
+.btn-danger { background-color: #f44336; }
+
+.btn:hover {
+    opacity: 0.9;
+    transform: scale(1.05);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Kompaktní styl sekce hráčů */
+#online-players-panel {
+    background: #1f1f1f;
+    padding: 16px;
+    border-radius: 10px;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+    margin-top: 20px;
+    color: #f0f0f0;
+    font-size: 0.88rem;
+}
+
+#online-players-panel h4 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #00e676;
+}
+
+#online-players-panel h4 i {
+    font-size: 1rem;
+    color: #00e676;
+}
+
+#players-table-container {
+    overflow-x: auto;
+}
+
+#online-players-table {
+    width: 100%;
+    margin-bottom: 0;
+    display: none;
+    border-collapse: collapse;
+    background: transparent;
+    color: #f0f0f0;
+    font-size: 0.85rem;
+}
+
+#online-players-table th,
+#online-players-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#online-players-table th {
+    background-color: #292929;
+    font-weight: 600;
+    color: #ddd;
+}
+
+#online-players-table tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    transition: background-color 0.2s ease-in-out;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.015);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* Žádní hráči */
+#no-players-message {
+    padding: 12px;
+    text-align: center;
+    color: #aaa;
+    font-style: italic;
+    font-size: 0.85rem;
+    background-color: rgba(255, 255, 255, 0.025);
+    border-radius: 6px;
+    display: block;
+    margin-top: 8px;
+}
+
+#online-players-list tr {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ====== KONZOLOVÁ SEKCE ====== */
+.console-section {
+    background: #181818;
+    color: #f1f1f1;
+    border-radius: 10px;
+    padding: 1rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    margin-top: 1.5rem;
+}
+
+/* Hlavička */
+.console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+.console-header h3 {
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+/* ====== ZÁLOŽKY ====== */
+.console-tabs {
+    display: flex;
+    align-items: center;
+    background: #202020;
+    border-bottom: 1px solid #333;
+    border-radius: 6px 6px 0 0;
+    overflow-x: auto;
+}
+
+.tab {
+    padding: 8px 15px;
+    cursor: pointer;
+    background: #252525;
+    border-right: 1px solid #333;
+    transition: background 0.2s;
+    user-select: none;
+    position: relative;
+    color: #ddd;
+}
+.tab.active {
+    background: #2ecc71;
+    color: #fff;
+}
+.tab:hover:not(.active) {
+    background: #333;
+}
+.tab-close {
+    margin-left: 8px;
+    color: #ccc;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.tab-close:hover {
+    color: #fff;
+}
+.tab-add {
+    background: #333;
+    border: none;
+    color: #0f0;
+    font-size: 1.2rem;
+    padding: 8px 12px;
+    cursor: pointer;
+    margin-left: auto;
+    border-radius: 0 6px 0 0;
+    transition: background 0.2s;
+}
+.tab-add:hover {
+    background: #444;
+}
+
+/* ====== OBSAH ZÁLOŽEK ====== */
+.tab-content {
+    display: none;
+}
+.tab-content.active {
+    display: block;
+}
+
+/* ====== HLAVNÍ KONZOLE ====== */
+.console-output {
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px;
+    height: 420px;
+    overflow-y: auto;
+    color: #00ff80;
+    font-family: monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.6);
+}
+
+/* ====== PŘÍKAZOVÁ LIŠTA ====== */
+.console-input-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+}
+.console-input {
+    flex: 1;
+    background: #1e1e1e;
+    color: #f1f1f1;
+    border: 1px solid #333;
+    border-radius: 5px;
+    padding: 8px 10px;
+    font-family: monospace;
+    font-size: 0.95rem;
+    transition: border 0.2s, background 0.2s;
+}
+.console-input:focus {
+    outline: none;
+    border-color: #2ecc71;
+    background: #242424;
+}
+
+/* ====== ODESÍLACÍ TLAČÍTKO ====== */
+.console-button {
+    background-color: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.console-button:hover {
+    background-color: #27ae60;
+}
+.console-button:active {
+    transform: scale(0.97);
+}
+.console-button i {
+    margin-left: 3px;
+}
+
+/* ====== MODÁLNÍ DIALOG ====== */
+.log-dialog {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+.log-dialog.hidden {
+    display: none;
+}
+.log-dialog-content {
+    background: #1e1e1e;
+    color: #f1f1f1;
+    padding: 1.2rem;
+    border-radius: 10px;
+    width: 450px;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 0 25px rgba(0, 0, 0, 0.4);
+    border: 1px solid #333;
+    animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.log-dialog-content h4 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+/* seznam logů */
+.log-list {
+    background: #111;
+    border-radius: 6px;
+    padding: 6px;
+    max-height: 55vh;
+    overflow-y: auto;
+    border: 1px solid #333;
+}
+
+.log-item {
+    padding: 8px 12px;
+    border-radius: 5px;
+    margin-bottom: 4px;
+    background: #1b1b1b;
+    border: 1px solid #2b2b2b;
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #ddd;
+    transition: background 0.15s, transform 0.05s;
+}
+.log-item:hover {
+    background: #2ecc71;
+    color: #fff;
+    transform: scale(1.02);
+}
+
+/* tlačítka v dialogu */
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+.dialog-btn {
+    padding: 7px 16px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+.dialog-btn.cancel {
+    background: #444;
+    color: #eee;
+}
+.dialog-btn.cancel:hover {
+    background: #555;
+}
+
+/* Backup panel */
+.backup-panel {
+    margin-top: 30px;
+    padding: 24px;
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border: 1px solid #e0e0e0;
+}
+
+.backup-list-container {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.backup-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    background-color: #fdfdfd;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    border: 1px solid #ddd;
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.backup-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.backup-info {
+    flex: 1;
+    font-size: 15px;
+    color: #333;
+}
+
+.backup-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 20px;
+}
+
+.backup-actions button {
+    padding: 6px 12px;
+    font-size: 14px;
+    border: none;
+    border-radius: 6px;
+    background-color: #45a049;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.backup-actions button:hover {
+    background-color: #24bc2b;
+}
+
+#backup-name {
+    margin-top: 12px;
+    max-width: 320px;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+}
+
+/* Disk usage panel */
+.disk-usage-panel {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.combined-progress {
+    height: 30px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+}
+
+.progress-bar {
+    height: 100%;
+    transition: width 0.6s ease;
+}
+
+.server-bar {
+    background-color: #4e73df;
+}
+
+.backup-bar {
+    background-color: #f6c23e;
+}
+
+.disk-usage-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.usage-item {
+    display: flex;
+    justify-content: space-between;
+}
+
+.usage-label {
+    font-weight: 500;
+    color: #5a5c69;
+}
+
+.usage-value {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+
+.usage-label i {
+    margin-right: 5px;
+    width: 20px;
+    text-align: center;
+}
+
+.combined-progress {
+    position: relative;
+    height: 30px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+}
+
+.combined-progress::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(100% - var(--used-percent));
+    background-color: #f8f9fa;
+    z-index: 0;
+}
+
+/* Admin management panel */
+#admin-management-panel {
+    background-color: #f8f9fa;
+    border: 1px solid #ced4da;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 30px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+#admin-management-panel h3,
+#admin-management-panel h4 {
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: #343a40;
+}
+
+/* Vstup pro e-mail admina */
+#admin-email-input {
+    width: 100%;
+    max-width: 400px;
+    padding: 10px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    margin-bottom: 10px;
+}
+
+#admin-email-input:focus {
+    border-color: #80bdff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Tlačítko "Přidat admina" */
+#add-admin-btn {
+    padding: 10px 16px;
+    font-size: 1rem;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    cursor: pointer;
+}
+
+#add-admin-btn:hover {
+    background-color: #0056b3;
+}
+
+#add-admin-btn:active {
+    transform: scale(0.98);
+}
+
+/* Seznam adminů */
+#admin-list {
+    max-width: 500px;
+}
+
+#admin-list li {
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#admin-list button {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-size: 0.875rem;
+    transition: background-color 0.2s ease;
+}
+
+#admin-list button:hover {
+    background-color: #c82333;
+}
+
+/* ===== OPRAVA STATUS INDIKÁTORŮ PRO GRADIENT HEADER ===== */
+.server-header .server-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    position: relative;
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.server-header .status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.server-header .status-online {
+    background-color: #22c55e !important;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.5) !important;
+}
+
+.server-header .status-offline {
+    background-color: #ef4444 !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.5) !important;
+}
+
+.server-header .status-loading {
+    background-color: #f59e0b !important;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.5) !important;
+    animation: pulse 1.5s infinite;
+}
+
+.server-header .status-text {
+    color: white !important;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* ====== RESPONSIVE ====== */
+@media (max-width: 900px) {
+    .console-section {
+        padding: 0.7rem;
+    }
+    .console-output {
+        height: 320px;
+    }
+    
+    .server-actions {
+        flex-direction: column;
+    }
+    
+    .backup-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .backup-actions {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-end;
+    }
+}

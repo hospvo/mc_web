@@ -299,13 +299,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function loadLogs() {
     const serverId = getCurrentServerId();
+    const logBox = document.getElementById("log-output");
+
+    // zkontroluj, jestli je uživatel u konce (malá tolerance)
+    const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 50;
+
     fetch(`/api/server/logs?server_id=${serverId}&lines=100`)
         .then(res => res.json())
         .then(data => {
-            const logBox = document.getElementById("log-output");
-            // Zde použijeme innerHTML, abychom vykreslili HTML s barvami
             logBox.innerHTML = data.html;
-            logBox.scrollTop = logBox.scrollHeight;
+
+            // posuň dolů pouze pokud byl uživatel u konce
+            if (isAtBottom) {
+                logBox.scrollTop = logBox.scrollHeight;
+            }
         })
         .catch(error => {
             console.error('Chyba při načítání logů:', error);
@@ -314,6 +321,146 @@ function loadLogs() {
 
 setInterval(loadLogs, 3000);
 loadLogs();
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    const tabContainer = document.querySelector('.console-tabs');
+    const tabContentContainer = document.getElementById('console-tab-content');
+    const addButton = document.getElementById('add-log-tab');
+    const logBox = document.getElementById('log-output');
+
+    if (!tabContainer || !addButton || !logBox) {
+        console.warn("Konzolová sekce nebyla nalezena na této stránce.");
+        return;
+    }
+
+    // ====== Automatické načítání hlavních logů ======
+    function loadLogs() {
+        const serverId = getCurrentServerId();
+        const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 50;
+
+        fetch(`/api/server/logs?server_id=${serverId}&lines=200`)
+            .then(res => res.json())
+            .then(data => {
+                logBox.innerHTML = data.html || data.text || '';
+                if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
+            })
+            .catch(err => console.error("Chyba při načítání logů:", err));
+    }
+
+    setInterval(loadLogs, 3000);
+    loadLogs();
+
+    // ====== Přepínání mezi záložkami ======
+    tabContainer.addEventListener('click', e => {
+        const tab = e.target.closest('.tab');
+        if (!tab || tab.classList.contains('tab-add')) return;
+
+        const target = tab.dataset.tab;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`tab-${target}`).classList.add('active');
+    });
+
+    // ====== PŘIDÁNÍ NOVÉ ZÁLOŽKY (výběr logu přes modální dialog) ======
+    addButton.addEventListener('click', async () => {
+        const serverId = getCurrentServerId();
+        const response = await fetch(`/api/server/old-logs?server_id=${serverId}`);
+        const logs = await response.json();
+
+        const dialog = document.getElementById('logDialog');
+        const listContainer = document.getElementById('logList');
+        listContainer.innerHTML = '';
+
+        if (!logs.length) {
+            listContainer.innerHTML = '<p style="color:#ccc;text-align:center;">Žádné staré logy nebyly nalezeny.</p>';
+        } else {
+            logs.forEach(file => {
+                const item = document.createElement('div');
+                item.className = 'log-item';
+                item.textContent = file;
+                item.addEventListener('click', async () => {
+                    await openOldLog(file, serverId);
+                    dialog.classList.add('hidden');
+                });
+                listContainer.appendChild(item);
+            });
+        }
+
+        dialog.classList.remove('hidden');
+    });
+
+    // ====== Zavření modálního dialogu ======
+    document.getElementById('closeLogDialog').addEventListener('click', () => {
+        document.getElementById('logDialog').classList.add('hidden');
+    });
+
+    // ====== Načtení starého logu (otevře záložku) ======
+    async function openOldLog(filename, serverId) {
+        const logData = await fetch(`/api/server/old-logs/view?server_id=${serverId}&filename=${encodeURIComponent(filename)}`)
+            .then(r => r.json());
+
+        const tabId = `old-${Date.now()}`;
+
+        const tab = document.createElement('div');
+        tab.className = 'tab';
+        tab.dataset.tab = tabId;
+        tab.innerHTML = `${filename} <span class="tab-close">✖</span>`;
+        tabContainer.insertBefore(tab, addButton);
+
+        const content = document.createElement('div');
+        content.className = 'tab-content';
+        content.id = `tab-${tabId}`;
+        content.innerHTML = `<pre class="console-output">${logData.content}</pre>`;
+        tabContentContainer.appendChild(content);
+
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        content.classList.add('active');
+    }
+
+    // ====== Zavírání záložek ======
+    tabContainer.addEventListener('click', e => {
+        if (e.target.classList.contains('tab-close')) {
+            const tab = e.target.closest('.tab');
+            const tabId = tab.dataset.tab;
+            const content = document.getElementById(`tab-${tabId}`);
+            tab.remove();
+            content.remove();
+
+            // vrať se na hlavní konzoli
+            document.querySelector('.tab[data-tab="main"]').classList.add('active');
+            document.getElementById('tab-main').classList.add('active');
+        }
+    });
+
+    // ====== Odesílání příkazů ======
+    document.getElementById('sendCommand').addEventListener('click', sendCommand);
+    document.getElementById('console-input').addEventListener('keypress', e => {
+        if (e.key === 'Enter') sendCommand();
+    });
+
+    async function sendCommand() {
+        const input = document.getElementById('console-input');
+        const command = input.value.trim();
+        const serverId = getCurrentServerId();
+        if (!command) return;
+
+        try {
+            await fetch(`/api/server/command?server_id=${serverId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command })
+            });
+            input.value = '';
+        } catch (err) {
+            console.error("Chyba při odesílání příkazu:", err);
+        }
+    }
+});
+
 
 function sendCommand() {
     const cmdInput = document.getElementById("console-input");
