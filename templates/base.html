@@ -1,47 +1,55 @@
 <!DOCTYPE html>
 <html lang="cs">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{% endblock %} | Minecraft Hosting</title>
+  <!-- 🧠 SEO a indexace -->
+  <meta name="description" content="Webová správa Minecraft serverů – ovládání, pluginy, zálohy a více.">
+  <meta name="keywords" content="minecraft, server, správa, plugins, mods, dashboard">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="MarusDrimalus.fun">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   {% block extra_css %}{% endblock %}
 </head>
+
 <body>
-    <header>
-        <h1><a href="{{ url_for('index') }}">Minecraft Hosting</a></h1>
-        <nav>
-          {% if current_user.is_authenticated %}
-            <!-- Odkaz na Ceník/Dashboard se mění podle aktuální stránky -->
-            {% if request.endpoint == 'dashboard' %}
-              <a href="{{ url_for('index') }}#cenik"><i class="fas fa-tags"></i> Ceník</a>
-            {% else %}
-              <a href="{{ url_for('dashboard') }}"><i class="fas fa-server"></i> Dashboard</a>
-            {% endif %}
-            
-            <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Odhlásit</a>
-          {% else %}
-            <a href="{{ url_for('index') }}#cenik"><i class="fas fa-tags"></i> Ceník</a>
-            <a href="{{ url_for('auth.login') }}"><i class="fas fa-sign-in-alt"></i> Přihlášení</a>
-            <a href="{{ url_for('auth.register') }}"><i class="fas fa-user-plus"></i> Registrace</a>
-          {% endif %}
-        </nav>
-      </header>
+  <header>
+    <h1><a href="{{ url_for('index') }}">Minecraft Hosting</a></h1>
+    <nav>
+      {% if current_user.is_authenticated %}
+      <!-- Odkaz na Ceník/Dashboard se mění podle aktuální stránky -->
+      {% if request.endpoint == 'dashboard' %}
+      <a href="{{ url_for('index') }}#cenik"><i class="fas fa-tags"></i> Ceník</a>
+      {% else %}
+      <a href="{{ url_for('dashboard') }}"><i class="fas fa-server"></i> Dashboard</a>
+      {% endif %}
+
+      <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Odhlásit</a>
+      {% else %}
+      <a href="{{ url_for('index') }}#cenik"><i class="fas fa-tags"></i> Ceník</a>
+      <a href="{{ url_for('auth.login') }}"><i class="fas fa-sign-in-alt"></i> Přihlášení</a>
+      <a href="{{ url_for('auth.register') }}"><i class="fas fa-user-plus"></i> Registrace</a>
+      {% endif %}
+    </nav>
+  </header>
 
   <main>
     {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-messages">
-          {% for category, message in messages %}
-            <div class="flash {{ category }}">
-              <i class="fas fa-{% if category == 'error' %}exclamation-triangle{% elif category == 'success' %}check-circle{% else %}info-circle{% endif %}"></i>
-              {{ message }}
-            </div>
-          {% endfor %}
-        </div>
-      {% endif %}
+    {% if messages %}
+    <div class="flash-messages">
+      {% for category, message in messages %}
+      <div class="flash {{ category }}">
+        <i
+          class="fas fa-{% if category == 'error' %}exclamation-triangle{% elif category == 'success' %}check-circle{% else %}info-circle{% endif %}"></i>
+        {{ message }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% endwith %}
 
     {% block content %}{% endblock %}
@@ -56,4 +64,5 @@
   <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
   {% block extra_js %}{% endblock %}
 </body>
+
 </html>

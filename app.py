@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, session, jsonify, abort
+from flask import Flask, render_template, redirect, url_for, request, session, jsonify, abort, send_from_directory
 from flask_login import LoginManager, login_required, current_user
 from flask_migrate import Migrate
 from auth import auth_blueprint
@@ -33,6 +33,15 @@ def load_user(user_id):
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(server_api)
 app.register_blueprint(mods_api)
+
+
+@app.route('/BingSiteAuth.xml')
+def bing_verify():
+    return send_from_directory('.', 'BingSiteAuth.xml')
+
+@app.route('/sitemap.xml')
+def sitemap():
+    return send_from_directory('.', 'sitemap.xml')
 
 @app.route('/')
 def index():
