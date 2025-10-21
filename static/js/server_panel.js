@@ -464,32 +464,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-function sendCommand() {
-    const cmdInput = document.getElementById("console-input");
-    const command = cmdInput.value.trim();
-    const serverId = getCurrentServerId();
-    if (!command) return;
-
-    fetch(`/api/server/command?server_id=${serverId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command })
-    }).then(() => {
-        cmdInput.value = '';
-        loadLogs();
-    });
-}
-
-// Odeslání příkazu při stisknutí Enteru
-document.getElementById('console-input').addEventListener('keydown', function (event) {
-    if (event.key === 'Enter') {
-        sendCommand();
-    }
-});
-
-// Odeslání příkazu kliknutím na tlačítko
-document.getElementById('sendCommand').addEventListener('click', sendCommand);
-
 // Backup management functions
 async function loadBackups() {
     const serverId = getCurrentServerId();
