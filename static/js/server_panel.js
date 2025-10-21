@@ -297,30 +297,9 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(updateStatus, 10000);
 });
 
-function loadLogs() {
-    const serverId = getCurrentServerId();
-    const logBox = document.getElementById("log-output");
-
-    // zkontroluj, jestli je uživatel u konce (malá tolerance)
-    const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 50;
-
-    fetch(`/api/server/logs?server_id=${serverId}&lines=100`)
-        .then(res => res.json())
-        .then(data => {
-            logBox.innerHTML = data.html;
-
-            // posuň dolů pouze pokud byl uživatel u konce
-            if (isAtBottom) {
-                logBox.scrollTop = logBox.scrollHeight;
-            }
-        })
-        .catch(error => {
-            console.error('Chyba při načítání logů:', error);
-        });
-}
-
-setInterval(loadLogs, 3000);
-loadLogs();
+// ====== Automatické načítání hlavních logů (vylepšená verze) ======
+let lastLogContent = "";
+let lastServerStatus = "";
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -335,20 +314,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ====== Automatické načítání hlavních logů ======
-    function loadLogs() {
+    async function loadLogs() {
         const serverId = getCurrentServerId();
+        const logBox = document.getElementById("log-output");
         const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 50;
 
-        fetch(`/api/server/logs?server_id=${serverId}&lines=200`)
-            .then(res => res.json())
-            .then(data => {
-                logBox.innerHTML = data.html || data.text || '';
+        try {
+            // zjištění stavu serveru
+            const statusRes = await fetch(`/api/server/status?server_id=${serverId}`);
+            const statusData = await statusRes.json();
+
+            const currentStatus = statusData.status || "unknown";
+            // pokud došlo k vypnutí serveru -> smaž log
+            if (currentStatus === "stopped" && lastServerStatus !== "stopped") {
+                logBox.innerHTML = "";
+                lastLogContent = "";
+            }
+            lastServerStatus = currentStatus;
+
+            // načtení logů
+            const res = await fetch(`/api/server/logs?server_id=${serverId}&lines=200`);
+            const data = await res.json();
+            const newLog = data.html || data.text || "";
+
+            // aktualizuj jen pokud se obsah změnil
+            if (newLog !== lastLogContent) {
+                logBox.innerHTML = newLog;
+                lastLogContent = newLog;
                 if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
-            })
-            .catch(err => console.error("Chyba při načítání logů:", err));
+            }
+
+        } catch (err) {
+            console.error("Chyba při načítání logů:", err);
+        }
     }
 
-    setInterval(loadLogs, 3000);
+    // Místo pevného intervalu 3000 ms – mírně delší interval, abychom šetřili přenosy
+    setInterval(loadLogs, 4000);
     loadLogs();
 
     // ====== Přepínání mezi záložkami ======
