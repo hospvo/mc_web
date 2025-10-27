@@ -3,9 +3,11 @@ import shutil
 import requests
 import json
 from datetime import datetime
-from flask import Blueprint, request, jsonify, abort
+from flask import Blueprint, request, jsonify, abort, send_file, after_this_request
 from flask_login import login_required, current_user
 from urllib.parse import urlparse
+import tempfile
+import zipfile
 
 from models import db, Server, Mod, ModConfig, ModUpdateLog, server_mods
 from mc_server import BASE_MODS_PATH, BASE_SERVERS_PATH
@@ -58,13 +60,12 @@ def extract_modrinth_slug(url):
 def get_modrinth_info(slug):
     """Vrátí detailní info o projektu z Modrinthu - funguje pro mody i pluginy."""
     try:
-        # Přidáme timeout a headers pro lepší kompatibilitu
         headers = {
             'User-Agent': 'MinecraftServerManager/1.0 (https://github.com/your-repo)',
             'Accept': 'application/json'
         }
         
-        # Získáme základní info o projektu
+        # 1️⃣ Získáme základní info o projektu
         project_url = f"https://api.modrinth.com/v2/project/{slug}"
         project_response = requests.get(project_url, headers=headers, timeout=10)
         
@@ -75,44 +76,44 @@ def get_modrinth_info(slug):
             
         project = project_response.json()
         
-        # Získáme verze projektu
+        # 2️⃣ Získáme verze projektu
         versions_url = f"https://api.modrinth.com/v2/project/{slug}/version"
         versions_response = requests.get(versions_url, headers=headers, timeout=10)
-        
         if versions_response.status_code != 200:
             raise ValueError(f"Chyba při načítání verzí: {versions_response.status_code}")
-            
         versions = versions_response.json()
         
-        # Získáme informace o týmu
+        # 3️⃣ Získáme informace o týmu
         team_url = f"https://api.modrinth.com/v2/project/{slug}/members"
         team_response = requests.get(team_url, headers=headers, timeout=10)
         team = team_response.json() if team_response.status_code == 200 else []
 
-        # Detekce typu projektu
+        # 4️⃣ Načteme typ projektu + client/server side metadata
         project_type = project.get("project_type", "mod")
-        
-        # Detekce zda může být plugin
+        client_side = project.get("client_side", "optional")   # <- přidáno
+        server_side = project.get("server_side", "required")   # <- přidáno
+
+        # 5️⃣ Detekce plugin kompatibility
         can_be_plugin = False
         all_loaders = set()
+        plugin_loaders = {'bukkit', 'spigot', 'paper', 'purpur', 'folia', 'sponge'}
         
-        # Analyzujeme loadery ze všech verzí
         for version in versions:
             version_loaders = version.get("loaders", [])
             all_loaders.update(version_loaders)
-            
-            # Pokud má verze plugin loadery, může být plugin
-            plugin_loaders = {'bukkit', 'spigot', 'paper', 'purpur', 'folia', 'sponge'}
             if any(loader in plugin_loaders for loader in version_loaders):
                 can_be_plugin = True
 
+        # 6️⃣ Vrátíme rozšířené informace
         return {
             "project": project,
             "versions": versions,
             "team": team,
             "project_type": project_type,
             "can_be_plugin": can_be_plugin,
-            "all_loaders": list(all_loaders)
+            "all_loaders": list(all_loaders),
+            "client_side": client_side,    # <- nové pole
+            "server_side": server_side     # <- nové pole
         }
         
     except requests.exceptions.Timeout:
@@ -125,6 +126,7 @@ def get_modrinth_info(slug):
         raise ValueError(f"Neplatná odpověď z Modrinth API: {e}")
     except Exception as e:
         raise ValueError(f"Neočekávaná chyba: {e}")
+
 
 def pick_best_version(versions, preferred_loader=None, preferred_mc_version=None):
     """Vybere nejlepší verzi modu podle loaderu a MC verze."""
@@ -428,6 +430,7 @@ def check_mod_updates():
     return jsonify(updates)
 
 @mods_api.route("/api/mods/install-from-url", methods=["POST"])
+@login_required  # PŘIDAT - chybějící dekorátor
 def install_mod_from_url():
     if not request.is_json:
         return jsonify({"success": False, "error": "Request must be JSON"}), 400
@@ -444,14 +447,13 @@ def install_mod_from_url():
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    # ROZŠÍŘENÍ - povolíme instalaci i pluginům, pokud server podporuje módy
     if not is_mod_server(server):
         return jsonify({"error": "Server nepodporuje módy"}), 400
 
     try:
         # Získání informací o projektu
-        slug, project_type = extract_modrinth_slug(url)  # <- upravená funkce
-        info = get_modrinth_info(slug)  # <- upravená funkce
+        slug, project_type = extract_modrinth_slug(url)
+        info = get_modrinth_info(slug)
         
         # Najdeme konkrétní verzi podle download URL
         selected_version = None
@@ -466,12 +468,64 @@ def install_mod_from_url():
         if not selected_version:
             return jsonify({"success": False, "error": "Nepodařilo se najít informace o verzi"}), 400
 
-        # Stažení souboru
+        # Příprava metadat PRO KONTROLU DUPLICITY
+        loaders = selected_version.get("loaders", [])
+        game_versions = selected_version.get("game_versions", [])
+        primary_loader = loaders[0] if loaders else "unknown"
+        primary_mc_version = game_versions[0] if game_versions else "unknown"
+        version_number = selected_version.get("version_number", "unknown")
+
+        # === KONTROLA DUPLICITY PŘED STAŽENÍM SOUBORU ===
+        existing_mod = Mod.query.filter_by(
+            name=slug,
+            minecraft_version=primary_mc_version,
+            loader=primary_loader
+        ).first()
+
+        # Pokud mod již existuje
+        if existing_mod:
+            # Kontrola, zda je již nainstalován na tomto serveru
+            existing_link = db.session.execute(
+                server_mods.select().where(
+                    (server_mods.c.server_id == server.id) &
+                    (server_mods.c.mod_id == existing_mod.id)
+                )
+            ).first()
+
+            if not existing_link:
+                # Přidat vztah server-mod
+                db.session.execute(
+                    server_mods.insert().values(
+                        server_id=server.id,
+                        mod_id=existing_mod.id,
+                        installed_at=datetime.utcnow(),
+                        is_active=True
+                    )
+                )
+                db.session.commit()
+
+                return jsonify({
+                    "success": True,
+                    "message": f"Mod {existing_mod.display_name} byl přidán na server {server.name} (již byl v systému).",
+                    "mod_exists": True,
+                    "mod_id": existing_mod.id
+                })
+
+            # Mod je již nainstalován na tomto serveru
+            return jsonify({
+                "success": False,
+                "mod_exists": True,
+                "mod_name": existing_mod.display_name or existing_mod.name,
+                "mod_id": existing_mod.id,
+                "error": f"Mod {existing_mod.display_name or slug} je již nainstalován na tomto serveru."
+            }), 409
+
+        # === STAŽENÍ SOUBORU (pouze pokud mod neexistuje) ===
         r = requests.get(download_url, timeout=15, stream=True)
         r.raise_for_status()
 
         filename = os.path.basename(download_url)
-
+        
         # Uložení do centrálního úložiště
         central_path = os.path.join(BASE_MODS_PATH, "mods", "core", filename)
         os.makedirs(os.path.dirname(central_path), exist_ok=True)
@@ -481,18 +535,13 @@ def install_mod_from_url():
                 if chunk:
                     f.write(chunk)
 
-        # Příprava metadat
-        loaders = selected_version.get("loaders", [])
-        game_versions = selected_version.get("game_versions", [])
-        primary_loader = loaders[0] if loaders else "unknown"
-        primary_mc_version = game_versions[0] if game_versions else "unknown"
-
-        # Zápis do DB s ROZŠÍŘENÝMI metadaty
+        # === VYTVOŘENÍ NOVÉHO ZÁZNAMU MODU ===
         mod = Mod(
             name=slug,
             display_name=info["project"].get("title") or slug,
-            version=selected_version.get("version_number", "unknown"),
-            author=", ".join([member.get("user", {}).get("username", "unknown") for member in info.get("team", [])]),
+            version=version_number,
+            author=", ".join([member.get("user", {}).get("username", "unknown") 
+                            for member in info.get("team", [])]),
             description=info["project"].get("description", ""),
             file_path=central_path,
             download_url=download_url,
@@ -502,21 +551,21 @@ def install_mod_from_url():
             minecraft_version=primary_mc_version,
             supported_loaders=json.dumps(loaders),
             minecraft_versions=json.dumps(game_versions),
-            # NOVÁ POLÍČKA:
             can_be_plugin=info["can_be_plugin"],
             project_type=info["project_type"],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
         db.session.add(mod)
-        db.session.flush()
+        db.session.flush()  # Získat ID bez commit
 
-        # Instalace na server - vždy do mods složky (protože používáme mods API)
+        # === INSTALACE NA SERVER ===
         server_mods_dir = os.path.join(BASE_SERVERS_PATH, server.name, "minecraft-server", "mods")
         os.makedirs(server_mods_dir, exist_ok=True)
         dest_path = os.path.join(server_mods_dir, filename)
         shutil.copy2(central_path, dest_path)
 
+        # Přidat vztah server-mod
         db.session.execute(
             server_mods.insert().values(
                 server_id=server.id,
@@ -526,16 +575,37 @@ def install_mod_from_url():
             )
         )
 
+        # === LOGOVÁNÍ INSTALACE ===
+        log_entry = ModUpdateLog(
+            mod_id=mod.id,
+            user_id=current_user.id,
+            action="install",
+            version_to=version_number,
+            notes=f"Installed from Modrinth to server {server.name}"
+        )
+        db.session.add(log_entry)
+
         db.session.commit()
+
         return jsonify({
             "success": True,
             "message": f"{info['project_type'].title()} {mod.display_name} byl nainstalován na server {server.name}",
-            "project_type": info["project_type"]
+            "project_type": info["project_type"],
+            "mod_id": mod.id
         })
 
+    except requests.exceptions.RequestException as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": f"Chyba při stahování souboru: {str(e)}"}), 500
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        # Smazat stažený soubor, pokud instalace selhala
+        try:
+            if 'central_path' in locals() and os.path.exists(central_path):
+                os.remove(central_path)
+        except:
+            pass
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @mods_api.route("/api/mods/get-download-info", methods=["POST"])
 @login_required
@@ -619,3 +689,79 @@ def get_mod_download_info():
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         return jsonify({"success": False, "error": f"Neočekávaná chyba: {str(e)}"}), 500
+
+@mods_api.route("/api/mods/client-pack/download")
+@login_required
+def download_client_pack():
+    """Vytvoří ZIP se všemi módy, které hráč musí mít na klientu."""
+    server_id = request.args.get("server_id", type=int)
+    if not server_id:
+        return jsonify({"error": "Missing server_id"}), 400
+
+    server = Server.query.get_or_404(server_id)
+    # jen vlastník nebo admin
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+
+    # === Získání modů s kontrolou client_side ===
+    mods = []
+    for mod in server.mods:
+        try:
+            client_side = (getattr(mod, 'client_side', None) or '').lower().strip() or 'unknown'
+            loader = (mod.loader or '').lower().strip()
+
+            # fallback logika, pokud client_side není známo
+            if client_side == 'unknown':
+                if loader in ['fabric', 'quilt']:
+                    client_side = 'required'
+                else:
+                    client_side = 'optional'
+
+            mods.append({
+                "id": mod.id,
+                "name": mod.name,
+                "file_path": mod.file_path,
+                "client_side": client_side
+            })
+        except Exception as e:
+            print(f"Chyba při zpracování modu {getattr(mod, 'name', '?')}: {e}")
+            continue
+
+    # Filtrujeme jen klientské mody
+    client_mods = [m for m in mods if m["client_side"] in ["required", "recommended"]]
+
+    if not client_mods:
+        return jsonify({"error": "Na tomto serveru nejsou žádné módy, které by vyžadoval klient."}), 404
+
+    # vytvoření dočasného ZIPu
+    zip_dir = tempfile.mkdtemp()
+    zip_path = os.path.join(zip_dir, f"client_modpack_{server.id}.zip")
+
+    try:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for mod in client_mods:
+                if os.path.exists(mod["file_path"]):
+                    zf.write(mod["file_path"], os.path.basename(mod["file_path"]))
+        
+        # Přidat callback pro smazání temp souboru po odeslání
+        @after_this_request
+        def remove_file(response):
+            try:
+                os.remove(zip_path)
+                os.rmdir(zip_dir)
+            except Exception as error:
+                print(f"Chyba při mazání temp souboru: {error}")
+            return response
+
+        return send_file(zip_path, as_attachment=True, download_name=f"{server.name}_client_mods.zip")
+    
+    except Exception as e:
+        # Úklid při chybě
+        try:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+            if os.path.exists(zip_dir):
+                os.rmdir(zip_dir)
+        except:
+            pass
+        return jsonify({"error": f"Chyba při vytváření ZIP souboru: {str(e)}"}), 500
