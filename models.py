@@ -169,6 +169,8 @@ class Mod(db.Model):
     supported_loaders = db.Column(db.Text)                        # JSON seznam podporovaných loaderů
     loader = db.Column(db.String(50))                             # konkrétní loader tohoto souboru (fabric/forge/neoforge)
     minecraft_version = db.Column(db.String(20))                  # konkrétní MC verze tohoto souboru
+    client_side = db.Column(db.String(20))  # "required", "optional", "unsupported"
+    server_side = db.Column(db.String(20))
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)

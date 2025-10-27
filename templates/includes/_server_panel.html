@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="cs">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Správa serveru - {{ server.name }}</title>
-    
+
     <!-- Hlavní CSS soubory -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/server_panel.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/plugins_manager.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mods_quickview.css') }}">
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
+
 <body>
     <div class="server-panel">
         <div class="server-header">
@@ -145,6 +147,13 @@
             </div>
         </div>
 
+        <div class="client-tools-section">
+            <h3><i class="fas fa-toolbox"></i> Nástroje pro hráče</h3>
+            <div id="client-tools-container"></div>
+        </div>
+
+
+
         <div id="admin-management-panel" style="display: none;">
             <h3><i class="fas fa-user-shield"></i> Správa administrátorů</h3>
             <input type="email" id="admin-email-input" class="form-control mb-2" placeholder="Email admina">
@@ -173,7 +182,8 @@
             <div id="installed-mods-quickview" class="mods-list">
                 <!-- Načte se dynamicky -->
             </div>
-            <button id="manage-mods-btn" class="btn btn-primary" style="background-color: #9f7aea; border-color: #805ad5;">
+            <button id="manage-mods-btn" class="btn btn-primary"
+                style="background-color: #9f7aea; border-color: #805ad5;">
                 <i class="fas fa-cog"></i> Spravovat mody
             </button>
         </div>
@@ -181,4 +191,5 @@
 
     <script src="{{ url_for('static', filename='js/server_panel.js') }}"></script>
 </body>
+
 </html>

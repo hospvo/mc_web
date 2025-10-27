@@ -41,51 +41,60 @@ async function manageServerComponents() {
 
     try {
         const response = await fetch(`/api/server/build-type?server_id=${serverId}`);
-
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-
         const data = await response.json();
         buildType = data.build_type;
 
-        // Uložit do localStorage pro budoucí použití
+        // Uložit build type pro další použití
         localStorage.setItem(`server_${serverId}_build_type`, data.build_type);
     } catch (error) {
         console.error('Chyba při získávání build type:', error);
-        buildType = getServerBuildType(); // fallback na localStorage
+        buildType = getServerBuildType(); // fallback z localStorage
     }
 
     const modsSection = document.querySelector('.mods-quickview');
     const pluginsSection = document.querySelector('.plugins-quickview');
+    const clientToolsSection = document.querySelector('.client-tools-section');
 
+    // --- MÓDOVÝ SERVER ---
     if (isModServer(buildType)) {
-        // Zobrazit pouze módy
         if (modsSection) modsSection.style.display = 'block';
         if (pluginsSection) pluginsSection.style.display = 'none';
+        if (clientToolsSection) clientToolsSection.style.display = 'block';
 
-        // Načíst módy
         try {
             await loadInstalledModsQuickview();
         } catch (error) {
             console.error('Chyba při načítání modů:', error);
         }
+
+        // ✅ Přidáno – inicializace nástrojů pro klienta
+        if (typeof initClientTools === 'function') {
+            initClientTools(serverId);
+        } else {
+            console.warn('initClientTools není dostupná.');
+        }
+
+    // --- PLUGINOVÝ SERVER ---
     } else if (isPluginServer(buildType)) {
-        // Zobrazit pouze pluginy
         if (modsSection) modsSection.style.display = 'none';
         if (pluginsSection) pluginsSection.style.display = 'block';
+        if (clientToolsSection) clientToolsSection.style.display = 'none';
 
-        // Načíst pluginy
         try {
             await loadQuickViewPlugins();
         } catch (error) {
             console.error('Chyba při načítání pluginů:', error);
         }
+
+    // --- NEZNÁMÝ BUILD ---
     } else {
-        // Neznámý build - skrýt obojí
         console.warn('Neznámý typ buildu:', buildType);
         if (modsSection) modsSection.style.display = 'none';
         if (pluginsSection) pluginsSection.style.display = 'none';
+        if (clientToolsSection) clientToolsSection.style.display = 'none';
     }
 }
 
@@ -870,3 +879,97 @@ document.addEventListener('DOMContentLoaded', function () {
         window.location.href = `/server/${getCurrentServerId()}/plugins`;
     });
 });
+
+function initClientTools(serverId) {
+    const container = document.getElementById('client-tools-container');
+    if (!container) {
+        console.error('Container #client-tools-container nebyl nalezen');
+        return;
+    }
+
+    // Vyčistit kontejner
+    container.innerHTML = '';
+
+    const tools = [
+        {
+            id: 'client-pack',
+            icon: 'fa-file-archive',
+            title: 'Klientský balíček modů',
+            description: 'Stáhněte si všechny módy, které potřebujete pro připojení k tomuto serveru. Balíček obsahuje kompletní sadu modů ve správných verzích.',
+            buttonText: 'Stáhnout ZIP',
+            buttonClass: 'btn-success',
+            onClick: async function() {
+                const statusElement = document.getElementById(`${this.id}-status`);
+                const originalText = this.buttonElement.textContent;
+                
+                try {
+                    statusElement.textContent = 'Připravuji ZIP balíček...';
+                    statusElement.className = 'tool-status info';
+                    this.buttonElement.disabled = true;
+                    this.buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Připravuji...';
+
+                    const response = await fetch(`/api/mods/client-pack/download?server_id=${serverId}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const blob = await response.blob();
+                    
+                    if (blob.size === 0) {
+                        throw new Error('Obdržen prázdný soubor');
+                    }
+
+                    // Vytvoření a stažení souboru
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${serverId}_client_mods.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    statusElement.textContent = `ZIP balíček úspěšně stažen (${(blob.size / 1024 / 1024).toFixed(2)} MB)`;
+                    statusElement.className = 'tool-status success';
+
+                } catch (error) {
+                    console.error('Chyba při stahování klientského balíčku:', error);
+                    statusElement.textContent = `Chyba při stahování: ${error.message}`;
+                    statusElement.className = 'tool-status error';
+                } finally {
+                    this.buttonElement.disabled = false;
+                    this.buttonElement.innerHTML = originalText;
+                    
+                    // Automaticky skrýt status zprávu po 10 sekundách
+                    setTimeout(() => {
+                        statusElement.textContent = '';
+                        statusElement.className = 'tool-status';
+                    }, 10000);
+                }
+            }
+        }
+    ];
+
+    // Vykreslení karet nástrojů
+    tools.forEach(tool => {
+        const card = document.createElement('div');
+        card.className = 'tool-card';
+        card.innerHTML = `
+            <h5><i class="fas ${tool.icon}"></i> ${tool.title}</h5>
+            <p>${tool.description}</p>
+            <button class="btn ${tool.buttonClass}" id="tool-btn-${tool.id}">
+                ${tool.buttonText}
+            </button>
+            <div id="${tool.id}-status" class="tool-status"></div>
+        `;
+        container.appendChild(card);
+
+        // Přidání event listeneru
+        const button = document.getElementById(`tool-btn-${tool.id}`);
+        tool.buttonElement = button; // Uložení reference na tlačítko
+        button.addEventListener('click', tool.onClick.bind(tool));
+    });
+
+    console.log(`Client tools initialized for server ${serverId}`);
+}
