@@ -152,6 +152,154 @@
             <div id="client-tools-container"></div>
         </div>
 
+        <!-- Sekce informací pro hráče -->
+        <div class="player-info-section">
+            <div class="server-panel">
+                <div class="section-header" data-section="player-info">
+                    <h3><i class="fas fa-info-circle"></i> Informace pro hráče</h3>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+
+                <div class="section-content" id="player-info-content" style="display: none;">
+                    <!-- Pro adminy: formulář pro vytvoření oznámení -->
+                    <!-- Vylepšený formulář pro oznámení -->
+                    <div id="notice-management-panel" style="display: none;">
+                        <div class="create-notice-form mb-4">
+                            <h4><i class="fas fa-plus"></i> Nové oznámení</h4>
+                            <div class="form-group">
+                                <label for="notice-title">Nadpis:</label>
+                                <input type="text" id="notice-title" class="form-control" placeholder="Název oznámení">
+                            </div>
+
+                            <!-- Textové nástroje -->
+                            <div class="text-toolbar mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
+                                    data-tag="bold" data-tooltip="Tučné">
+                                    <i class="fas fa-bold"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
+                                    data-tag="italic" data-tooltip="Kurzíva">
+                                    <i class="fas fa-italic"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
+                                    data-tag="underline" data-tooltip="Podtržení">
+                                    <i class="fas fa-underline"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
+                                    data-tag="code" data-tooltip="Kód">
+                                    <i class="fas fa-code"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
+                                    data-tag="link" data-tooltip="Vložit odkaz">
+                                    <i class="fas fa-link"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
+                                    data-tag="list-ul" data-tooltip="Odrážky">
+                                    <i class="fas fa-list-ul"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
+                                    data-tag="list-ol" data-tooltip="Číslovaný seznam">
+                                    <i class="fas fa-list-ol"></i>
+                                </button>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="notice-content">Obsah:</label>
+                                <textarea id="notice-content" class="form-control" rows="6"
+                                    placeholder="Text oznámení... Můžete použít **tučný text**, *kurzívu* nebo [odkaz](https://example.com)"></textarea>
+                                <small class="form-text text-muted">
+                                    Podporuje základní formátování: **tučný**, *kurzíva*, `kód`, [odkaz](url)
+                                </small>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label for="notice-type">Typ:</label>
+                                    <select id="notice-type" class="form-control">
+                                        <option value="info">ℹ️ Informace</option>
+                                        <option value="warning">⚠️ Varování</option>
+                                        <option value="important">🔔 Důležité</option>
+                                        <option value="update">🔄 Aktualizace</option>
+                                        <option value="event">🎉 Event</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <div class="form-check mt-4">
+                                        <input type="checkbox" id="notice-pinned" class="form-check-input">
+                                        <label for="notice-pinned" class="form-check-label">
+                                            <i class="fas fa-thumbtack"></i> Připnout nahoru
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button id="create-notice-btn" class="btn btn-success">
+                                <i class="fas fa-save"></i> Vytvořit oznámení
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Seznam oznámení -->
+                    <div class="notices-list">
+                        <div id="notices-container">
+                            <!-- Oznámení se načtou dynamicky -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sekce pro správu modpacků (zobrazí se pouze pro mod servery) -->
+        <div class="modpacks-management-section" style="display: none;">
+            <div class="server-panel">
+                <h3><i class="fas fa-cube"></i> Správa modpacků</h3>
+
+                <!-- Formulář pro vytvoření nového modpacku - rozbalovací -->
+                <div class="create-modpack-form mb-4">
+                    <div class="section-header" data-section="create-modpack">
+                        <h4><i class="fas fa-plus-circle"></i> Vytvořit nový modpack</h4>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </div>
+                    <div class="section-content" id="create-modpack-content" style="display: none;">
+                        <div class="form-group">
+                            <label for="modpack-name">Název modpacku:</label>
+                            <input type="text" id="modpack-name" class="form-control"
+                                placeholder="Např. Technický modpack">
+                        </div>
+                        <div class="form-group">
+                            <label for="modpack-description">Popis (volitelné):</label>
+                            <textarea id="modpack-description" class="form-control" rows="2"
+                                placeholder="Popis balíčku..."></textarea>
+                        </div>
+
+                        <div class="available-mods-list mb-3">
+                            <h5>Vyberte módy pro modpack:</h5>
+                            <div id="mods-checklist" class="mods-checklist">
+                                <!-- Módy se načtou dynamicky -->
+                            </div>
+                        </div>
+
+                        <button id="create-modpack-btn" class="btn btn-success">
+                            <i class="fas fa-file-archive"></i> Vytvořit modpack
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Seznam existujících modpacků - rozbalovací -->
+                <div class="existing-modpacks">
+                    <div class="section-header" data-section="modpacks-list">
+                        <h4><i class="fas fa-list"></i> Existující modpacky</h4>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </div>
+                    <div class="section-content" id="modpacks-list-content" style="display: none;">
+                        <div id="modpacks-list" class="modpacks-list">
+                            <!-- Modpacky se načtou dynamicky -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 
 
         <div id="admin-management-panel" style="display: none;">
@@ -164,6 +312,34 @@
                 <!-- Seznam adminů se načte zde -->
             </ul>
         </div>
+
+        <div id="player-access-management" style="display: none;">
+            <h4><i class="fas fa-key"></i> Správa přístupových kódů</h4>
+
+            <div class="generate-code-form mb-3">
+                <button id="generate-code-btn" class="btn btn-primary mb-2">
+                    <i class="fas fa-plus"></i> Vygenerovat nový kód
+                </button>
+                <div class="form-inline">
+                    <label>Platnost (hodiny):</label>
+                    <input type="number" id="expires-hours" class="form-control form-control-sm" value="24" min="1">
+                    <label>Max použití:</label>
+                    <input type="number" id="max-uses" class="form-control form-control-sm" placeholder="Neomezeně"
+                        min="1">
+                </div>
+            </div>
+
+            <div id="generated-code-result" class="alert alert-success" style="display: none;"></div>
+
+            <div class="codes-list">
+                <h5>Aktivní kódy</h5>
+                <div id="access-codes-list">
+                    <!-- Kódy se načtou dynamicky -->
+                </div>
+            </div>
+        </div>
+
+
 
         <!-- Sekce pro pluginy (bude zobrazena pouze pro plugin servery) -->
         <div class="plugins-quickview" style="display: none;">

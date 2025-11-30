@@ -2,18 +2,21 @@ import os
 import subprocess
 import psutil
 import shutil
+import secrets
+import string
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import threading
 from flask import Blueprint, request, jsonify, current_app, abort
 from flask_login import login_required, current_user
-from models import db, User, Plugin, Server, PluginConfig, PluginUpdateLog, server_plugins
+from models import db, User, Plugin, Server, PluginConfig, PluginUpdateLog, server_plugins, PlayerAccessCode, PlayerServerAccess, PlayerNotice,  Mod, ModPack
 from plugin_instaler_modrinth import extract_slug_from_url, get_modrinth_plugin_info, get_download_url, handle_web_request
 import requests
 from ansi2html import Ansi2HTMLConverter
 import yaml
 from mcstatus import JavaServer
+
 
 
 # Base directory where all server folders will be stored
@@ -1598,3 +1601,456 @@ def get_plugin_download_info():
     url = data.get("url")
     server_id = data.get("server_id")
     return jsonify(handle_web_request(url, server_id))
+
+
+@server_api.route('/api/server/player-access/generate-code', methods=['POST'])
+@login_required
+def generate_player_access_code():
+    server_id = request.json.get('server_id')
+    expires_hours = request.json.get('expires_hours', 24)
+    max_uses = request.json.get('max_uses', None)
+    
+    server = Server.query.get_or_404(server_id)
+    
+    # Ověření, že uživatel je admin/owner
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    # Generování unikátního kódu
+    def generate_code():
+        return ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+    
+    code = generate_code()
+    while PlayerAccessCode.query.filter_by(access_code=code).first():
+        code = generate_code()
+    
+    # Vytvoření přístupového kódu
+    access_code = PlayerAccessCode(
+        server_id=server_id,
+        access_code=code,
+        created_by=current_user.id,
+        expires_at=datetime.utcnow() + timedelta(hours=expires_hours) if expires_hours else None,
+        max_uses=max_uses
+    )
+    
+    db.session.add(access_code)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'code': code,
+        'expires_at': access_code.expires_at.isoformat() if access_code.expires_at else None,
+        'max_uses': max_uses
+    })
+
+@server_api.route('/api/server/player-access/codes')
+@login_required
+def list_player_access_codes():
+    server_id = request.args.get('server_id')
+    server = Server.query.get_or_404(server_id)
+    
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    codes = PlayerAccessCode.query.filter_by(server_id=server_id).order_by(PlayerAccessCode.created_at.desc()).all()
+    
+    return jsonify([{
+        'id': code.id,
+        'code': code.access_code,
+        'created_at': code.created_at.isoformat(),
+        'expires_at': code.expires_at.isoformat() if code.expires_at else None,
+        'max_uses': code.max_uses,
+        'use_count': code.use_count,
+        'is_active': code.is_active and (not code.expires_at or code.expires_at > datetime.utcnow())
+    } for code in codes])
+
+@server_api.route('/api/server/player-access/revoke-code', methods=['POST'])
+@login_required
+def revoke_player_access_code():
+    data = request.get_json()
+    code_id = data.get('code_id')
+    
+    if not code_id:
+        return jsonify({'success': False, 'error': 'Chybějící code_id'}), 400
+    
+    access_code = PlayerAccessCode.query.get(code_id)
+    if not access_code:
+        return jsonify({'success': False, 'error': 'Kód nebyl nalezen'}), 404
+    
+    server = access_code.server
+    
+    # Ověření, že uživatel je admin/owner
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        return jsonify({'success': False, 'error': 'Nemáte oprávnění'}), 403
+    
+    access_code.is_active = False
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+@server_api.route('/api/player/join-with-code', methods=['POST'])
+@login_required
+def join_server_with_code():
+    access_code_str = request.json.get('access_code')
+    
+    access_code = PlayerAccessCode.query.filter_by(access_code=access_code_str).first()
+    if not access_code:
+        return jsonify({'success': False, 'error': 'Neplatný přístupový kód'})
+    
+    # Kontrola platnosti
+    if not access_code.is_active:
+        return jsonify({'success': False, 'error': 'Přístupový kód již není platný'})
+    
+    if access_code.expires_at and access_code.expires_at < datetime.utcnow():
+        return jsonify({'success': False, 'error': 'Přístupový kód vypršel'})
+    
+    if access_code.max_uses and access_code.use_count >= access_code.max_uses:
+        return jsonify({'success': False, 'error': 'Přístupový kód byl již použit maximální počet krát'})
+    
+    # Kontrola, zda už uživatel není připojen
+    existing_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=access_code.server_id
+    ).first()
+    
+    if existing_access:
+        return jsonify({'success': False, 'error': 'Již jste připojen k tomuto serveru'})
+    
+    # Vytvoření přístupu
+    player_access = PlayerServerAccess(
+        user_id=current_user.id,
+        server_id=access_code.server_id,
+        access_code_id=access_code.id
+    )
+    
+    # Inkrementace počtu použití
+    access_code.use_count += 1
+    
+    db.session.add(player_access)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'server_name': access_code.server.name,
+        'server_id': access_code.server_id
+    })
+
+@server_api.route('/api/server/player-access/check')
+@login_required
+def check_player_access():
+    """Zkontroluje, zda má uživatel přístup k serveru jako hráč"""
+    server_id = request.args.get('server_id')
+    
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    return jsonify({'has_player_access': has_access})
+
+
+def is_mod_server(server):
+    """Zkontroluje, zda server podporuje módy"""
+    if not server.build_version or not server.build_version.build_type:
+        return False
+    
+    build_type = server.build_version.build_type.name.upper()
+    mod_builds = [
+        'FABRIC', 'FORGE', 'NEOFORGE', 'QUILT', 'BABRIC', 'BTA',
+        'JAVA_AGENT', 'LEGACY_FABRIC', 'LITELOADER', 'MODLOADER',
+        'NILLOADER', 'ORNITHE', 'RIFT', 'RISUGAMI'
+    ]
+    return build_type in mod_builds
+
+
+
+
+############################ player API
+
+# Hráčské endpointy - pouze pro servery, ke kterým má hráč přístup
+@server_api.route('/api/player/server/info')
+@login_required
+def player_server_info():
+    """Informace o serveru pro hráče"""
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    if not has_access:
+        return jsonify({'error': 'No access to this server'}), 403
+
+    server = Server.query.get(server_id)
+    if not server:
+        return jsonify({'error': 'Server not found'}), 404
+
+    return jsonify({
+        "server_loader": server.build_version.build_type.name if server.build_version else "Unknown",
+        "mc_version": server.build_version.mc_version if server.build_version else "Unknown",
+        "server_port": server.server_port
+    })
+
+@server_api.route('/api/player/server/status')
+@login_required
+def player_server_status():
+    """Status serveru pro hráče"""
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+    
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    if not has_access:
+        return jsonify({'error': 'No access to this server'}), 403
+    
+    status = get_server_status(server_id)
+
+    if status['status'] == 'running':
+        player_info = get_online_player_info(server_id)
+        status['players'] = player_info["count"]
+        status['player_names'] = player_info["names"]
+    else:
+        status['players'] = 0
+        status['player_names'] = []
+    
+    return jsonify(status)
+
+@server_api.route('/api/player/notices')
+@login_required
+def player_notices():
+    """Oznámení pro hráče"""
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Chybí server_id'}), 400
+    
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    if not has_access:
+        return jsonify({'error': 'No access to this server'}), 403
+    
+    # Hráči vidí pouze aktivní oznámení
+    notices = PlayerNotice.query.filter_by(
+        server_id=server_id, 
+        is_active=True
+    ).order_by(
+        PlayerNotice.is_pinned.desc(),
+        PlayerNotice.created_at.desc()
+    ).all()
+    
+    return jsonify([{
+        'id': notice.id,
+        'title': notice.title,
+        'content': notice.content,
+        'type': notice.notice_type,
+        'is_pinned': notice.is_pinned,
+        'author': notice.author.username,
+        'created_at': notice.created_at.strftime('%d.%m.%Y %H:%M'),
+    } for notice in notices])
+
+@server_api.route('/api/player/mods/installed')
+@login_required
+def player_installed_mods():
+    """Nainstalované módy pro hráče"""
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    if not has_access:
+        return jsonify({'error': 'No access to this server'}), 403
+
+    server = Server.query.get_or_404(server_id)
+
+    if not is_mod_server(server):
+        return jsonify({"error": "Server nepodporuje módy"}), 400
+
+    mods = []
+    for mod in server.mods:
+        mods.append({
+            "id": mod.id,
+            "name": mod.name,
+            "display_name": mod.display_name or mod.name,
+            "version": mod.version,
+            "author": mod.author,
+            "description": mod.description,
+            "loader": mod.loader,
+        })
+
+    return jsonify(mods)
+
+@server_api.route('/api/player/mods/client-pack/download')
+@login_required
+def player_download_client_pack():
+    """Stažení klientského balíčku modů pro hráče"""
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    if not has_access:
+        return jsonify({'error': 'No access to this server'}), 403
+
+    server = Server.query.get_or_404(server_id)
+
+    if not is_mod_server(server):
+        return jsonify({"error": "Server nepodporuje módy"}), 400
+
+    # Zde zavolej funkci pro vytvoření/stáhnutí client packu
+    # Prozatím vrátíme chybu - tuto funkci budeš muset implementovat
+    return jsonify({'error': 'Client pack download not implemented yet'}), 501
+
+@server_api.route('/api/player/modpacks/list')
+@login_required
+def player_list_modpacks():
+    """Seznam modpacků pro hráče"""
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Chybí server_id'}), 400
+    
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    if not has_access:
+        return jsonify({'error': 'No access to this server'}), 403
+    
+    server = Server.query.get_or_404(server_id)
+    
+    modpacks = ModPack.query.filter_by(server_id=server_id).order_by(ModPack.created_at.desc()).all()
+    
+    result = []
+    for pack in modpacks:
+        result.append({
+            'id': pack.id,
+            'name': pack.name,
+            'description': pack.description,
+            'author': pack.author.username,
+            'created_at': pack.created_at.strftime('%d.%m.%Y %H:%M'),
+            'file_size': pack.file_size,
+            'download_count': pack.download_count,
+            'mod_count': len(pack.mods),
+            'mods': [{
+                'id': mod.id,
+                'name': mod.display_name or mod.name,
+                'version': mod.version
+            } for mod in pack.mods]
+        })
+    
+    return jsonify(result)
+
+@server_api.route('/api/player/modpacks/download/<int:pack_id>')
+@login_required
+def player_download_modpack(pack_id):
+    """Stažení modpacku pro hráče"""
+    modpack = ModPack.query.get_or_404(pack_id)
+    server = modpack.server
+    
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server.id
+    ).first() is not None
+    
+    if not has_access:
+        abort(403)
+    
+    if not os.path.exists(modpack.file_path):
+        return jsonify({'error': 'Soubor modpacku nebyl nalezen'}), 404
+    
+    # Inkrementovat počítadlo stažení
+    modpack.download_count += 1
+    db.session.commit()
+    
+    # Odeslat soubor
+    safe_filename = f"{modpack.name.replace(' ', '_')}.zip"
+    return send_file(
+        modpack.file_path,
+        as_attachment=True,
+        download_name=safe_filename,
+        conditional=True
+    )
+
+
+@server_api.route('/api/player/server/build-type')
+@login_required
+def player_server_build_type():
+    """Typ buildu serveru pro hráče"""
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+    
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    if not has_access:
+        return jsonify({'error': 'No access to this server'}), 403
+    
+    server = Server.query.get_or_404(server_id)
+    
+    build_type = server.build_version.build_type.name if server.build_version else "UNKNOWN"
+    
+    return jsonify({
+        'build_type': build_type,
+        'is_mod_server': is_mod_server(server)
+    })
+
+@server_api.route('/api/player/report', methods=['POST'])
+@login_required
+def player_report():
+    """Odeslání nahlášení od hráče"""
+    data = request.get_json()
+    server_id = data.get('server_id')
+    message = data.get('message')
+    
+    if not server_id or not message:
+        return jsonify({'success': False, 'error': 'Chybí povinné údaje'}), 400
+    
+    # Kontrola přístupu hráče
+    has_access = PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server_id
+    ).first() is not None
+    
+    if not has_access:
+        return jsonify({'success': False, 'error': 'No access to this server'}), 403
+    
+    try:
+        # Zde můžeš implementovat odeslání nahlášení (email, notifikace, uložení do DB)
+        # Prozatím vrátíme success
+        print(f"Nahlášení od hráče {current_user.username} pro server {server_id}: {message}")
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Nahlášení bylo úspěšně odesláno administrátorům'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

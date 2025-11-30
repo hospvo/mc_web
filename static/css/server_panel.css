@@ -1123,3 +1123,729 @@
 .client-tools-section:hover::after {
     opacity: 1;
 }
+/* ================================
+   SEKCE: SPRÁVA MODPACKŮ
+================================ */
+.modpacks-management-section {
+    margin-top: 2rem;
+}
+
+.create-modpack-form {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+/* ================================
+   SEZNAM MODŮ V CHECKBOXU
+================================ */
+.mods-checklist {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 10px;
+    background: white;
+}
+
+.mod-checkbox-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f3f4;
+    transition: background-color 0.2s;
+}
+.mod-checkbox-item:last-child { border-bottom: none; }
+.mod-checkbox-item:hover { background-color: #f8f9fa; }
+
+.mod-checkbox-item input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.mod-info { flex: 1; }
+.mod-name { font-weight: 600; color: #2d3748; }
+.mod-version { font-size: 0.85rem; color: #6c757d; margin-left: 8px; }
+.mod-description { font-size: 0.8rem; color: #6c757d; margin-top: 2px; }
+
+/* ================================
+   SEZNAM MODPACKŮ
+================================ */
+.modpacks-list {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.modpack-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+.modpack-item:hover {
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* ================================
+   AKCE, NÁHLEDY A STATISTIKY
+================================ */
+.modpack-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.modpack-actions .btn {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+}
+
+.modpack-mods-preview {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f3f4;
+}
+
+.mod-badge {
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    color: #495057;
+}
+
+/* ================================
+   ROZBALOVACÍ SEKCE
+================================ */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+.section-header:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+.section-header h4, .section-header h3 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.section-header .toggle-icon {
+    transition: transform 0.3s ease;
+}
+.section-header[data-section].expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.section-content {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 1.5rem;
+    animation: slideDown 0.3s ease;
+}
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ================================
+   INFORMAČNÍ SEKCE / OZNÁMENÍ
+================================ */
+.player-info-section { margin-top: 2rem; }
+
+.notice-item {
+    background: white;
+    border-left: 4px solid #3498db;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+.notice-item.pinned { border-left-color: #f39c12; background: #fff9e6; }
+.notice-item.warning { border-left-color: #e74c3c; background: #ffe6e6; }
+.notice-item.important { border-left-color: #9b59b6; background: #f4ecf7; }
+.notice-item.update { border-left-color: #2ecc71; background: #eafaf1; }
+
+.notice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.notice-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2d3748;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notice-meta { font-size: 0.85rem; color: #6c757d; }
+.notice-content { color: #495057; line-height: 1.5; white-space: pre-line; }
+
+.notice-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e9ecef;
+}
+.notice-actions .btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.85rem;
+    border-radius: 4px;
+}
+
+/* ================================
+   TEXT TOOLBAR + TOOLTIPY
+================================ */
+.text-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    position: relative;
+}
+
+.text-tool-btn {
+    position: relative;
+    border-radius: 5px;
+    background: white;
+    border: 1px solid #ced4da;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.text-tool-btn:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+}
+.text-tool-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: -1.8rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #343a40;
+    color: white;
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+    z-index: 10;
+}
+.text-tool-btn:hover::after { opacity: 1; }
+
+
+
+/* ================================
+   FORMULÁŘE A DROBNE DETAILY
+================================ */
+.form-control {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+}
+.form-control:focus {
+    border-color: #3498db;
+    outline: none;
+}
+.form-group label {
+    font-weight: 500;
+    color: #2d3748;
+}
+textarea.form-control { resize: vertical; }
+
+.form-text.text-muted {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+/* ================================
+   ODSTUPY
+================================ */
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 1rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+.mt-4 { margin-top: 1.5rem; }
+
+/* ================================
+   RESPONSIVE DESIGN
+================================ */
+@media (max-width: 768px) {
+    .modpack-header { flex-direction: column; gap: 0.5rem; }
+    .modpack-actions { flex-direction: column; width: 100%; }
+    .modpack-actions .btn { width: 100%; justify-content: center; }
+    .mods-checklist { max-height: 200px; }
+    .section-header { padding: 0.8rem 1rem; }
+    .section-header h4 { font-size: 1rem; }
+    .section-content { padding: 1rem; }
+}
+
+/* === Primární modré tlačítko (pro editaci, potvrzení atd.) === */
+#edit-modpack-btn {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+
+#edit-modpack-btn:hover {
+    background: linear-gradient(135deg, #2980b9, #1f6fa5);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(41, 128, 185, 0.3);
+}
+
+
+/* ================================
+   SPECIFICKÁ TLAČÍTKA
+================================ */
+
+/* Modré tlačítko pro editaci modpacku */
+.btn.btn-sm.btn-primary.edit-modpack-btn {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.2);
+}
+
+.btn.btn-sm.btn-primary.edit-modpack-btn:hover {
+    background: linear-gradient(135deg, #2980b9, #1f6fa5);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(41, 128, 185, 0.3);
+}
+
+/* Oranžové tlačítko pro přepínání oznámení */
+.btn.btn-sm.btn-secondary.toggle-notice-btn {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    box-shadow: 0 2px 4px rgba(243, 156, 18, 0.2);
+}
+
+.btn.btn-sm.btn-secondary.toggle-notice-btn:hover {
+    background: linear-gradient(135deg, #e67e22, #d35400);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(230, 126, 34, 0.3);
+}
+
+/* Červené tlačítko pro zrušení editace */
+.btn.btn-sm.btn-secondary.cancel-edit-btn {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    box-shadow: 0 2px 4px rgba(231, 76, 60, 0.2);
+}
+
+.btn.btn-sm.btn-secondary.cancel-edit-btn:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(192, 57, 43, 0.3);
+}
+
+/* Společné styly pro všechna tlačítka */
+.btn.btn-sm.btn-primary.edit-modpack-btn:active,
+.btn.btn-sm.btn-secondary.toggle-notice-btn:active,
+.btn.btn-sm.btn-secondary.cancel-edit-btn:active {
+    transform: translateY(0);
+}
+
+.btn.btn-sm.btn-primary.edit-modpack-btn:focus,
+.btn.btn-sm.btn-secondary.toggle-notice-btn:focus,
+.btn.btn-sm.btn-secondary.cancel-edit-btn:focus {
+    outline: none;
+}
+
+.btn.btn-sm.btn-primary.edit-modpack-btn i,
+.btn.btn-sm.btn-secondary.toggle-notice-btn i,
+.btn.btn-sm.btn-secondary.cancel-edit-btn i {
+    font-size: 0.7rem;
+}
+
+
+/* Sekce pro připojení k serveru */
+.join-server-section {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e9ecef;
+}
+
+.join-server-card {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+#access-code-input {
+    flex: 1;
+    max-width: 200px;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-align: center;
+    font-family: 'Courier New', monospace;
+}
+
+/* Badge pro role */
+.owner-badge {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    margin-left: 0.5rem;
+}
+
+.admin-badge {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    margin-left: 0.5rem;
+}
+
+.player-badge {
+    background: linear-gradient(135deg, #27ae60, #229954);
+    color: white;
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    margin-left: 0.5rem;
+}
+
+/* Hráčský pohled */
+.player-view .admin-section {
+    display: none !important;
+}
+
+/* Dashboard karty */
+.server-card {
+    position: relative;
+}
+
+.server-info {
+    margin: 10px 0;
+}
+
+.server-info p {
+    margin: 5px 0;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .join-server-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #access-code-input {
+        max-width: none;
+    }
+    
+    .server-actions .button {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* server_panel.css - přidejte na konec */
+/* === Access code item === */
+.access-code-item {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6 !important;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.access-code-item:hover {
+    background: #e9ecef;
+    border-color: #007bff !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.access-code-item .text-primary {
+    font-family: inherit;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+/* === Player Access Management Container === */
+#player-access-management {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 10px;
+    border: 1px solid #dee2e6;
+    margin-top: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+#player-access-management h4 {
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* === Generate Code Form === */
+.generate-code-form {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.generate-code-form .form-inline {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 6px;
+    margin-top: 1rem;
+}
+
+/* === Form Layout === */
+.form-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    margin-top: 0.8rem;
+}
+
+.form-inline label {
+    margin-bottom: 0;
+    font-weight: 500;
+    color: #495057;
+}
+
+.form-control-sm {
+    width: auto !important;
+    min-width: 80px;
+}
+
+/* === Generate Code Button === */
+#generate-code-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+}
+
+#generate-code-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+}
+
+#generate-code-btn:active {
+    transform: translateY(0);
+}
+
+#generate-code-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* === Revoke Code Button === */
+.revoke-code-btn {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    border: none;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+.revoke-code-btn:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
+    transform: scale(1.05);
+}
+
+/* === Generated Code Result === */
+#generated-code-result {
+    border-left: 4px solid #28a745;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 1.1rem;
+    padding: 1rem;
+    margin: 1rem 0;
+    animation: fadeIn 0.3s ease;
+}
+
+#generated-code-result.alert-danger {
+    border-left-color: #dc3545;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* === Inactive Codes Section === */
+.inactive-codes-header {
+    cursor: pointer;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    margin-top: 1rem;
+    transition: all 0.3s ease;
+}
+
+.inactive-codes-header:hover {
+    background: #e9ecef;
+}
+
+.inactive-codes-header h6 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #6c757d;
+    font-weight: 600;
+}
+
+.inactive-codes-header .toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+.inactive-codes-header.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.inactive-codes-content {
+    margin-top: 0.5rem;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* === Badge Styling === */
+.badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.badge-success {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+}
+
+.badge-secondary {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+    color: white;
+}
+
+/* === Text Improvements === */
+.text-muted small {
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: #6c757d !important;
+}
+
+/* === Responsive Design === */
+@media (max-width: 768px) {
+    .access-code-item .d-flex {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .access-code-item .revoke-code-btn {
+        margin-top: 0.5rem;
+        margin-left: 0 !important;
+        align-self: flex-end;
+    }
+    
+    .form-inline {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .form-inline label,
+    .form-inline input {
+        margin-bottom: 0.5rem;
+    }
+}

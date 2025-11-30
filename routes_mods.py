@@ -9,10 +9,11 @@ from urllib.parse import urlparse
 import tempfile
 import zipfile
 
-from models import db, Server, Mod, ModConfig, ModUpdateLog, server_mods
+from models import db, Server, Mod, ModConfig, ModUpdateLog, server_mods, ModPack, mod_pack_mods
 from mc_server import BASE_MODS_PATH, BASE_SERVERS_PATH
 
 # Blueprint
+BASE_MODPACKS_PATH = "data/modpacks"
 mods_api = Blueprint("mods_api", __name__)
 
 def is_mod_server(server: Server) -> bool:
@@ -693,67 +694,73 @@ def get_mod_download_info():
 @mods_api.route("/api/mods/client-pack/download")
 @login_required
 def download_client_pack():
-    """Vytvoří ZIP se všemi módy, které hráč musí mít na klientu."""
     server_id = request.args.get("server_id", type=int)
     if not server_id:
         return jsonify({"error": "Missing server_id"}), 400
 
     server = Server.query.get_or_404(server_id)
-    # jen vlastník nebo admin
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    # === Získání modů s kontrolou client_side ===
-    mods = []
+    # ZÍSKÁNÍ MODŮ - opravená verze
+    client_mods = []
+    used_filenames = set()  # Sledování použitých názvů souborů
+    
     for mod in server.mods:
-        try:
-            client_side = (getattr(mod, 'client_side', None) or '').lower().strip() or 'unknown'
-            loader = (mod.loader or '').lower().strip()
-
-            # fallback logika, pokud client_side není známo
-            if client_side == 'unknown':
-                if loader in ['fabric', 'quilt']:
-                    client_side = 'required'
-                else:
-                    client_side = 'optional'
-
-            mods.append({
-                "id": mod.id,
-                "name": mod.name,
-                "file_path": mod.file_path,
-                "client_side": client_side
-            })
-        except Exception as e:
-            print(f"Chyba při zpracování modu {getattr(mod, 'name', '?')}: {e}")
+        if not hasattr(mod, 'client_side') or mod.client_side in [None, 'unknown']:
             continue
-
-    # Filtrujeme jen klientské mody
-    client_mods = [m for m in mods if m["client_side"] in ["required", "recommended"]]
+            
+        if mod.client_side in ["required", "recommended"] and mod.client_side != "unsupported":
+            if os.path.exists(mod.file_path):
+                filename = os.path.basename(mod.file_path)
+                
+                # Kontrola duplicit
+                if filename in used_filenames:
+                    print(f"Varování: Duplicitní soubor {filename} - přeskočen")
+                    continue
+                    
+                used_filenames.add(filename)
+                client_mods.append({
+                    "file_path": mod.file_path,
+                    "filename": filename
+                })
 
     if not client_mods:
-        return jsonify({"error": "Na tomto serveru nejsou žádné módy, které by vyžadoval klient."}), 404
+        return jsonify({"error": "Žádné módy vyžadované klientem nebyly nalezeny"}), 404
 
-    # vytvoření dočasného ZIPu
+    # Vytvoření ZIPu
     zip_dir = tempfile.mkdtemp()
     zip_path = os.path.join(zip_dir, f"client_modpack_{server.id}.zip")
 
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for mod in client_mods:
-                if os.path.exists(mod["file_path"]):
-                    zf.write(mod["file_path"], os.path.basename(mod["file_path"]))
+                zf.write(mod["file_path"], mod["filename"])
         
-        # Přidat callback pro smazání temp souboru po odeslání
+        # LEPŠÍ ŘEŠENÍ PRO MAZÁNÍ - počkáme na dokončení odesílání
         @after_this_request
         def remove_file(response):
             try:
-                os.remove(zip_path)
-                os.rmdir(zip_dir)
+                # Počkáme chvíli, než se pokusíme smazat soubor
+                import time
+                time.sleep(2)  # 2 sekundy čekání
+                
+                if os.path.exists(zip_path):
+                    os.remove(zip_path)
+                if os.path.exists(zip_dir):
+                    os.rmdir(zip_dir)
             except Exception as error:
                 print(f"Chyba při mazání temp souboru: {error}")
+                # Není fatální - temp soubory se časem vyčistí automaticky
             return response
 
-        return send_file(zip_path, as_attachment=True, download_name=f"{server.name}_client_mods.zip")
+        return send_file(
+            zip_path, 
+            as_attachment=True, 
+            download_name=f"{server.name}_client_mods.zip",
+            # Důležité pro Windows - neukončovat spojení okamžitě
+            conditional=True
+        )
     
     except Exception as e:
         # Úklid při chybě
@@ -765,3 +772,264 @@ def download_client_pack():
         except:
             pass
         return jsonify({"error": f"Chyba při vytváření ZIP souboru: {str(e)}"}), 500
+    
+
+#============ modpacks managment =========#
+@mods_api.route('/api/modpacks/create', methods=['POST'])
+@login_required
+def create_modpack():
+    """Vytvoří nový modpack z vybraných módů"""
+    data = request.get_json()
+    server_id = data.get('server_id')
+    pack_name = data.get('name')
+    description = data.get('description', '')
+    mod_ids = data.get('mod_ids', [])
+    
+    if not server_id or not pack_name or not mod_ids:
+        return jsonify({'success': False, 'error': 'Chybí povinné údaje'}), 400
+    
+    server = Server.query.get_or_404(server_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    try:
+        # Vytvoření složky pro modpacky serveru
+        server_packs_dir = os.path.join(BASE_MODPACKS_PATH, str(server_id))
+        os.makedirs(server_packs_dir, exist_ok=True)
+        
+        # Získání vybraných módů
+        selected_mods = Mod.query.filter(Mod.id.in_(mod_ids)).all()
+        if not selected_mods:
+            return jsonify({'success': False, 'error': 'Nebyly vybrány žádné módy'}), 400
+        
+        # Vytvoření ZIP archivu
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        safe_name = "".join(c for c in pack_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_name = safe_name.replace(' ', '_')
+        filename = f"{safe_name}_{timestamp}.zip"
+        zip_path = os.path.join(server_packs_dir, filename)
+        
+        total_size = 0
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for mod in selected_mods:
+                if os.path.exists(mod.file_path):
+                    # Použijeme originální název souboru
+                    mod_filename = os.path.basename(mod.file_path)
+                    zipf.write(mod.file_path, mod_filename)
+                    total_size += os.path.getsize(mod.file_path)
+        
+        # Vytvoření záznamu v databázi
+        modpack = ModPack(
+            name=pack_name,
+            description=description,
+            server_id=server_id,
+            author_id=current_user.id,
+            file_path=zip_path,
+            file_size=total_size,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(modpack)
+        db.session.flush()  # Získat ID pro vazby
+        
+        # Přidání vazeb na módy
+        for mod in selected_mods:
+            db.session.execute(
+                mod_pack_mods.insert().values(
+                    mod_pack_id=modpack.id,
+                    mod_id=mod.id
+                )
+            )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Modpack "{pack_name}" byl úspěšně vytvořen',
+            'modpack_id': modpack.id,
+            'file_size': total_size,
+            'mod_count': len(selected_mods)
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        # Smazat ZIP soubor pokud vznikla chyba
+        if 'zip_path' in locals() and os.path.exists(zip_path):
+            os.remove(zip_path)
+        return jsonify({'success': False, 'error': f'Chyba při vytváření modpacku: {str(e)}'}), 500
+
+@mods_api.route('/api/modpacks/list')
+@login_required
+def list_modpacks():
+    """Vrátí seznam modpacků pro daný server"""
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Chybí server_id'}), 400
+    
+    server = Server.query.get_or_404(server_id)
+    
+    # Ověření přístupu
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    modpacks = ModPack.query.filter_by(server_id=server_id).order_by(ModPack.created_at.desc()).all()
+    
+    result = []
+    for pack in modpacks:
+        result.append({
+            'id': pack.id,
+            'name': pack.name,
+            'description': pack.description,
+            'author': pack.author.username,
+            'created_at': pack.created_at.strftime('%d.%m.%Y %H:%M'),
+            'file_size': pack.file_size,
+            'download_count': pack.download_count,
+            'mod_count': len(pack.mods),
+            'mods': [{
+                'id': mod.id,
+                'name': mod.display_name or mod.name,
+                'version': mod.version
+            } for mod in pack.mods]
+        })
+    
+    return jsonify(result)
+
+@mods_api.route('/api/modpacks/download/<int:pack_id>')
+@login_required
+def download_modpack(pack_id):
+    """Stáhne modpack jako ZIP soubor"""
+    modpack = ModPack.query.get_or_404(pack_id)
+    
+    # Ověření přístupu k serveru
+    server = modpack.server
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    if not os.path.exists(modpack.file_path):
+        return jsonify({'error': 'Soubor modpacku nebyl nalezen'}), 404
+    
+    # Inkrementovat počítadlo stažení
+    modpack.download_count += 1
+    db.session.commit()
+    
+    # Odeslat soubor
+    safe_filename = f"{modpack.name.replace(' ', '_')}.zip"
+    return send_file(
+        modpack.file_path,
+        as_attachment=True,
+        download_name=safe_filename,
+        conditional=True
+    )
+
+@mods_api.route('/api/modpacks/delete/<int:pack_id>', methods=['DELETE'])
+@login_required
+def delete_modpack(pack_id):
+    """Smaže modpack"""
+    modpack = ModPack.query.get_or_404(pack_id)
+    
+    # Ověření přístupu - pouze vlastník nebo admin serveru
+    server = modpack.server
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    try:
+        # Smazat soubor
+        if os.path.exists(modpack.file_path):
+            os.remove(modpack.file_path)
+        
+        # Smazat záznam z databáze
+        db.session.delete(modpack)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Modpack byl smazán'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f'Chyba při mazání: {str(e)}'}), 500
+    
+
+@mods_api.route('/api/modpacks/update/<int:pack_id>', methods=['PUT'])
+@login_required
+def update_modpack(pack_id):
+    """Aktualizuje existující modpack"""
+    modpack = ModPack.query.get_or_404(pack_id)
+    
+    # Ověření přístupu
+    server = modpack.server
+    if server.owner_id != current_user.id and current_user not in server.admins:
+        abort(403)
+    
+    data = request.get_json()
+    name = data.get('name')
+    description = data.get('description', '')
+    mod_ids = data.get('mod_ids', [])
+    
+    if not name or not mod_ids:
+        return jsonify({'success': False, 'error': 'Chybí povinné údaje'}), 400
+    
+    try:
+        # Získání vybraných módů
+        selected_mods = Mod.query.filter(Mod.id.in_(mod_ids)).all()
+        if not selected_mods:
+            return jsonify({'success': False, 'error': 'Nebyly vybrány žádné módy'}), 400
+        
+        # Aktualizace metadat
+        modpack.name = name
+        modpack.description = description
+        modpack.updated_at = datetime.utcnow()
+        
+        # Aktualizace vazeb na módy
+        db.session.execute(
+            mod_pack_mods.delete().where(mod_pack_mods.c.mod_pack_id == modpack.id)
+        )
+        
+        for mod in selected_mods:
+            db.session.execute(
+                mod_pack_mods.insert().values(
+                    mod_pack_id=modpack.id,
+                    mod_id=mod.id
+                )
+            )
+        
+        # Vytvoření nového ZIP archivu
+        server_packs_dir = os.path.join(BASE_MODPACKS_PATH, str(server.id))
+        old_zip_path = modpack.file_path
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_name = safe_name.replace(' ', '_')
+        filename = f"{safe_name}_{timestamp}.zip"
+        new_zip_path = os.path.join(server_packs_dir, filename)
+        
+        total_size = 0
+        with zipfile.ZipFile(new_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for mod in selected_mods:
+                if os.path.exists(mod.file_path):
+                    mod_filename = os.path.basename(mod.file_path)
+                    zipf.write(mod.file_path, mod_filename)
+                    total_size += os.path.getsize(mod.file_path)
+        
+        # Aktualizace cesty a velikosti souboru
+        modpack.file_path = new_zip_path
+        modpack.file_size = total_size
+        
+        # Smazat starý ZIP soubor
+        if os.path.exists(old_zip_path) and old_zip_path != new_zip_path:
+            os.remove(old_zip_path)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Modpack "{name}" byl úspěšně aktualizován',
+            'file_size': total_size,
+            'mod_count': len(selected_mods)
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        # Smazat nový ZIP soubor pokud vznikla chyba
+        if 'new_zip_path' in locals() and os.path.exists(new_zip_path):
+            os.remove(new_zip_path)
+        return jsonify({'success': False, 'error': f'Chyba při aktualizaci modpacku: {str(e)}'}), 500

@@ -34,6 +34,13 @@ class User(db.Model, UserMixin):
     @property
     def is_active(self):
         return self.is_active_db
+    
+    @property
+    def accessible_servers_as_player(self):
+        """Vrátí servery, ke kterým má uživatel přístup jako hráč"""
+        return Server.query.join(PlayerServerAccess).filter(
+            PlayerServerAccess.user_id == self.id
+        ).all()
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -216,3 +223,85 @@ class ModUpdateLog(db.Model):
 
     mod = db.relationship("Mod", backref="update_logs")
     user = db.relationship("User", backref="mod_actions")
+
+
+class ModPack(db.Model):
+    __tablename__ = "mod_pack"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    server_id = db.Column(db.Integer, db.ForeignKey('server.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_size = db.Column(db.Integer)  # velikost v bytech
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    download_count = db.Column(db.Integer, default=0)
+    
+    # Vztahy
+    server = db.relationship('Server', backref='mod_packs')
+    author = db.relationship('User', backref='created_mod_packs')
+    mods = db.relationship('Mod', secondary='mod_pack_mods', backref='mod_packs')
+    
+    def __repr__(self):
+        return f'<ModPack {self.name} for server {self.server.name}>'
+
+# Spojovací tabulka pro M:N vztah mezi modpacky a módy
+mod_pack_mods = db.Table('mod_pack_mods',
+    db.Column('mod_pack_id', db.Integer, db.ForeignKey('mod_pack.id'), primary_key=True),
+    db.Column('mod_id', db.Integer, db.ForeignKey('mod.id'), primary_key=True),
+    db.Column('included_at', db.DateTime, default=datetime.utcnow)
+)
+
+class PlayerNotice(db.Model):
+    __tablename__ = "player_notice"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    server_id = db.Column(db.Integer, db.ForeignKey('server.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    notice_type = db.Column(db.String(20), default='info')  # info, warning, important, update
+    is_pinned = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    
+    # Vztahy
+    server = db.relationship('Server', backref='player_notices')
+    author = db.relationship('User', backref='authored_notices')
+    
+    def __repr__(self):
+        return f'<PlayerNotice {self.title} for server {self.server.name}>'
+    
+class PlayerAccessCode(db.Model):
+    __tablename__ = 'player_access_codes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    server_id = db.Column(db.Integer, db.ForeignKey('server.id'), nullable=False)
+    access_code = db.Column(db.String(12), unique=True, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+    max_uses = db.Column(db.Integer, default=None)
+    use_count = db.Column(db.Integer, default=0)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Vztahy
+    server = db.relationship('Server', backref=db.backref('player_access_codes', lazy=True))
+    creator = db.relationship('User', backref=db.backref('created_access_codes', lazy=True))
+
+class PlayerServerAccess(db.Model):
+    __tablename__ = 'player_server_access'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    server_id = db.Column(db.Integer, db.ForeignKey('server.id'), nullable=False)
+    access_code_id = db.Column(db.Integer, db.ForeignKey('player_access_codes.id'), nullable=False)
+    accessed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Vztahy
+    user = db.relationship('User', backref=db.backref('player_server_accesses', lazy=True))
+    server = db.relationship('Server', backref=db.backref('player_accesses', lazy=True))
+    access_code = db.relationship('PlayerAccessCode', backref=db.backref('accesses', lazy=True))

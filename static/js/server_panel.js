@@ -1,17 +1,34 @@
-// Přidejte tuto funkci pro získání server_id z URL
+// Získání server_id z URL nebo z localStorage (fallback)
 function getCurrentServerId() {
     const pathParts = window.location.pathname.split('/');
-    return pathParts[2]; // /server/<id> => část na indexu 2
+    const serverIdFromUrl = pathParts[2]; // /server/<id> => část na indexu 2
+
+    if (serverIdFromUrl && !isNaN(serverIdFromUrl)) {
+        return parseInt(serverIdFromUrl);
+    }
+    const lastServerId = localStorage.getItem('current_server_id');
+    if (lastServerId && !isNaN(lastServerId)) {
+        return parseInt(lastServerId);
+    }
+    console.error('Nelze získat server_id z URL:', window.location.pathname);
+    return null;
 }
 
-// Přidejte na začátek souboru (pod getCurrentServerId)
+// === ZÁKLADNÍ PROMĚNNÉ ===
+let currentModpacks = [];
+
+// Tlačítko zpět na dashboard
 function setupBackButton() {
-    document.getElementById('back-btn').addEventListener('click', () => {
-        window.location.href = '/dashboard';
-    });
+    const btn = document.getElementById('back-btn');
+    if (btn) {
+        btn.addEventListener('click', () => {
+            window.location.href = '/dashboard';
+        });
+    }
 }
 
-// Funkce pro detekci typu serveru
+// === DETEKCE BUILD TYPE ===
+
 function getServerBuildType() {
     const pathParts = window.location.pathname.split('/');
     const serverId = pathParts[2];
@@ -34,7 +51,7 @@ function isPluginServer(buildType) {
     return pluginBuilds.includes(buildType.toUpperCase());
 }
 
-// Hlavní funkce pro správu zobrazení modů/pluginů
+// === HLAVNÍ FUNKCE PRO SPRÁVU ZOBRAZENÍ MODŮ / PLUGINŮ ===
 async function manageServerComponents() {
     const serverId = getCurrentServerId();
     let buildType;
@@ -46,42 +63,41 @@ async function manageServerComponents() {
         }
         const data = await response.json();
         buildType = data.build_type;
-
-        // Uložit build type pro další použití
         localStorage.setItem(`server_${serverId}_build_type`, data.build_type);
     } catch (error) {
         console.error('Chyba při získávání build type:', error);
-        buildType = getServerBuildType(); // fallback z localStorage
+        buildType = getServerBuildType(); // fallback
     }
 
     const modsSection = document.querySelector('.mods-quickview');
     const pluginsSection = document.querySelector('.plugins-quickview');
     const clientToolsSection = document.querySelector('.client-tools-section');
+    const modpacksSection = document.querySelector('.modpacks-management-section');
 
-    // --- MÓDOVÝ SERVER ---
+    // === MÓDOVÝ SERVER ===
     if (isModServer(buildType)) {
         if (modsSection) modsSection.style.display = 'block';
         if (pluginsSection) pluginsSection.style.display = 'none';
         if (clientToolsSection) clientToolsSection.style.display = 'block';
+        if (modpacksSection) modpacksSection.style.display = 'block';
 
         try {
             await loadInstalledModsQuickview();
+            await initModpacksManagement();
         } catch (error) {
             console.error('Chyba při načítání modů:', error);
         }
 
-        // ✅ Přidáno – inicializace nástrojů pro klienta
         if (typeof initClientTools === 'function') {
             initClientTools(serverId);
-        } else {
-            console.warn('initClientTools není dostupná.');
         }
 
-    // --- PLUGINOVÝ SERVER ---
+        // === PLUGINOVÝ SERVER ===
     } else if (isPluginServer(buildType)) {
         if (modsSection) modsSection.style.display = 'none';
         if (pluginsSection) pluginsSection.style.display = 'block';
         if (clientToolsSection) clientToolsSection.style.display = 'none';
+        if (modpacksSection) modpacksSection.style.display = 'none';
 
         try {
             await loadQuickViewPlugins();
@@ -89,34 +105,30 @@ async function manageServerComponents() {
             console.error('Chyba při načítání pluginů:', error);
         }
 
-    // --- NEZNÁMÝ BUILD ---
+        // === NEZNÁMÝ BUILD ===
     } else {
         console.warn('Neznámý typ buildu:', buildType);
         if (modsSection) modsSection.style.display = 'none';
         if (pluginsSection) pluginsSection.style.display = 'none';
         if (clientToolsSection) clientToolsSection.style.display = 'none';
+        if (modpacksSection) modpacksSection.style.display = 'none';
     }
 }
 
-// Načtení typu serveru při inicializaci
+// === NAČTENÍ TYPŮ SERVERU ===
 async function loadServerBuildType() {
     try {
         const response = await fetch(`/api/server/build-type?server_id=${getCurrentServerId()}`);
         const data = await response.json();
-
-        // Uložit do localStorage pro budoucí použití
         localStorage.setItem(`server_${getCurrentServerId()}_build_type`, data.build_type);
-
-        // Spravovat zobrazení komponent
         manageServerComponents();
-
     } catch (error) {
         console.error('Chyba při načítání typu serveru:', error);
-        // Fallback - zkusit detekovat z URL
-        manageServerComponents();
+        manageServerComponents(); // fallback
     }
 }
 
+// === NAČTENÍ INFO O SERVERU ===
 async function loadServerInfo() {
     const serverId = getCurrentServerId();
     try {
@@ -135,15 +147,14 @@ async function loadServerInfo() {
     }
 }
 
+// === INICIALIZACE ===
 document.addEventListener('DOMContentLoaded', function () {
     const serverId = getCurrentServerId();
     setupBackButton();
-    updateStatus();
-
-    // Načíst typ serveru a podle toho zobrazit komponenty
     loadServerBuildType();
+    loadServerInfo();
+    //updateStatus();
 
-    // Funkce pro aktualizaci stavu
     async function updateStatus() {
         try {
             const response = await fetch(`/api/server/status?server_id=${serverId}`);
@@ -160,8 +171,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('cpu-max').textContent = data.cpu_max || '';
                 document.getElementById('player-count').textContent = data.players || '0';
                 document.getElementById('player-count-display').textContent = data.players || '0';
-
-                // Update player list
                 updatePlayerList(data.player_names || []);
             } else {
                 indicator.className = 'status-indicator offline';
@@ -170,8 +179,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('cpu-usage').textContent = data.cpu_percent || '-';
                 document.getElementById('player-count').textContent = '-';
                 document.getElementById('player-count-display').textContent = '0';
-
-                // Clear player list when server is offline
                 updatePlayerList([]);
             }
         } catch (error) {
@@ -726,6 +733,391 @@ async function removeAdmin(user_id) {
     }
 }
 
+// server_panel.js - opravte funkci initPlayerAccessManagement
+function initPlayerAccessManagement() {
+    const generateBtn = document.getElementById('generate-code-btn');
+    const playerAccessPanel = document.getElementById('player-access-management');
+
+    if (!playerAccessPanel) {
+        console.log('Player access management panel nebyl nalezen');
+        return;
+    }
+
+    // Zkontrolovat, zda je uživatel admin
+    const serverId = getCurrentServerId();
+    if (!serverId) {
+        console.error('Nelze inicializovat správu přístupových kódů - chybějící serverId');
+        return;
+    }
+
+    checkAdminAccess(serverId).then(isAdmin => {
+        if (isAdmin) {
+            playerAccessPanel.style.display = 'block';
+
+            if (generateBtn) {
+                generateBtn.addEventListener('click', generateAccessCode);
+                loadAccessCodes();
+            }
+        }
+    });
+}
+
+async function generateAccessCode() {
+    const serverId = getCurrentServerId();
+    const expiresHours = document.getElementById('expires-hours').value;
+    const maxUsesInput = document.getElementById('max-uses');
+    const maxUses = maxUsesInput.value ? parseInt(maxUsesInput.value) : null;
+
+    if (!serverId) {
+        alert('Chyba: Nelze získat ID serveru');
+        return;
+    }
+
+    const generateBtn = document.getElementById('generate-code-btn');
+    const originalText = generateBtn.innerHTML;
+
+    try {
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generuji...';
+
+        const response = await fetch('/api/server/player-access/generate-code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                server_id: serverId,
+                expires_hours: parseInt(expiresHours),
+                max_uses: maxUses
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            const resultDiv = document.getElementById('generated-code-result');
+            const expiresText = result.expires_at ?
+                `Platný do: ${new Date(result.expires_at).toLocaleString('cs-CZ')}` :
+                'Neomezená platnost';
+            const usesText = result.max_uses ?
+                `Maximální počet použití: ${result.max_uses}` :
+                'Neomezený počet použití';
+
+            resultDiv.innerHTML = `
+                <strong><i class="fas fa-key"></i> Nový přístupový kód:</strong><br>
+                <span style="font-size: 1.4rem; color: #28a745;">${result.code}</span><br>
+                <small>${expiresText}<br>${usesText}</small>
+            `;
+            resultDiv.style.display = 'block';
+
+            // Skrýt výsledek po 30 sekundách
+            setTimeout(() => {
+                resultDiv.style.display = 'none';
+            }, 30000);
+
+            // Resetovat formulář
+            maxUsesInput.value = '';
+
+            // Načíst aktualizovaný seznam kódů
+            await loadAccessCodes();
+
+        } else {
+            throw new Error(result.error || 'Neznámá chyba při generování kódu');
+        }
+
+    } catch (error) {
+        console.error('Chyba při generování kódu:', error);
+        alert(`Chyba při generování kódu: ${error.message}`);
+    } finally {
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = originalText;
+    }
+}
+
+async function loadAccessCodes() {
+    const serverId = getCurrentServerId();
+
+    if (!serverId) {
+        console.error('Nelze načíst přístupové kódy - chybějící serverId');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/server/player-access/codes?server_id=${serverId}`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const codes = await response.json();
+
+        const listContainer = document.getElementById('access-codes-list');
+        if (!listContainer) return;
+
+        listContainer.innerHTML = '';
+
+        if (codes.length === 0) {
+            listContainer.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-key fa-2x mb-3" style="color: #6c757d;"></i>
+                    <p class="mb-0">Žádné přístupové kódy</p>
+                    <small>Vygenerujte první kód pomocí tlačítka výše</small>
+                </div>
+            `;
+            return;
+        }
+
+        // Rozdělit kódy na aktivní a neaktivní
+        const activeCodes = codes.filter(code => code.is_active);
+        const inactiveCodes = codes.filter(code => !code.is_active);
+
+        // Zobrazit aktivní kódy
+        if (activeCodes.length > 0) {
+            activeCodes.forEach(code => {
+                const codeElement = createCodeElement(code, true);
+                listContainer.appendChild(codeElement);
+            });
+        } else {
+            listContainer.innerHTML += `
+                <div class="text-center text-muted py-3">
+                    <i class="fas fa-info-circle"></i>
+                    Žádné aktivní kódy
+                </div>
+            `;
+        }
+
+        // Zobrazit neaktivní kódy s rozbalovací sekcí
+        if (inactiveCodes.length > 0) {
+            const inactiveSection = createInactiveCodesSection(inactiveCodes);
+            listContainer.appendChild(inactiveSection);
+        }
+
+    } catch (error) {
+        console.error('Chyba při načítání kódů:', error);
+        const listContainer = document.getElementById('access-codes-list');
+        if (listContainer) {
+            listContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    Chyba při načítání přístupových kódů: ${error.message}
+                </div>
+            `;
+        }
+    }
+}
+
+// Nová funkce pro vytvoření rozbalovací sekce neaktivních kódů
+function createInactiveCodesSection(inactiveCodes) {
+    const section = document.createElement('div');
+    section.className = 'inactive-codes-section mt-4';
+
+    const header = document.createElement('div');
+    header.className = 'inactive-codes-header';
+    header.innerHTML = `
+        <h6>
+            <i class="fas fa-history"></i>
+            Neaktivní kódy (${inactiveCodes.length})
+            <i class="fas fa-chevron-down toggle-icon"></i>
+        </h6>
+    `;
+
+    const content = document.createElement('div');
+    content.className = 'inactive-codes-content';
+    content.style.display = 'none'; // Skryté na začátku
+
+    // Přidat neaktivní kódy do obsahu
+    inactiveCodes.forEach(code => {
+        const codeElement = createCodeElement(code, false);
+        content.appendChild(codeElement);
+    });
+
+    // Přidat funkci rozbalení/sbalení
+    header.addEventListener('click', function () {
+        const isExpanded = content.style.display === 'block';
+        content.style.display = isExpanded ? 'none' : 'block';
+        header.classList.toggle('expanded', !isExpanded);
+    });
+
+    section.appendChild(header);
+    section.appendChild(content);
+
+    return section;
+}
+
+// Upravená funkce createCodeElement - vrátíme původní font
+function createCodeElement(code, isActive) {
+    const codeElement = document.createElement('div');
+    codeElement.className = `access-code-item mb-2 p-3 border rounded ${isActive ? 'border-success' : 'border-secondary'}`;
+
+    const expiresText = code.expires_at ?
+        `Platný do: ${new Date(code.expires_at).toLocaleString('cs-CZ')}` :
+        'Neomezená platnost';
+
+    const usesText = code.max_uses ?
+        `Použito: ${code.use_count}/${code.max_uses}` :
+        `Použito: ${code.use_count}×`;
+
+    const statusBadge = isActive ?
+        '<span class="badge badge-success ml-2">Aktivní</span>' :
+        '<span class="badge badge-secondary ml-2">Neaktivní</span>';
+
+    codeElement.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center mb-1">
+                    <strong class="text-primary" style="font-size: 1.1rem; font-weight: 600; letter-spacing: 1px;">${code.code}</strong>
+                    ${statusBadge}
+                </div>
+                <div class="text-muted">
+                    <div class="small">${expiresText}</div>
+                    <div class="small">${usesText} • Vytvořen: ${new Date(code.created_at).toLocaleString('cs-CZ')}</div>
+                </div>
+            </div>
+            ${isActive ? `
+            <button class="btn btn-sm revoke-code-btn ml-3" data-code-id="${code.id}" title="Zrušit platnost kódu">
+                <i class="fas fa-ban"></i> Zrušit
+            </button>
+            ` : ''}
+        </div>
+    `;
+
+    // Přidat event listener pro aktivní kódy
+    if (isActive) {
+        const revokeBtn = codeElement.querySelector('.revoke-code-btn');
+        revokeBtn.addEventListener('click', function () {
+            const codeId = this.dataset.codeId;
+            revokeAccessCode(codeId);
+        });
+    }
+
+    return codeElement;
+}
+
+// Pomocná funkce pro vytvoření elementu kódu
+function createCodeElement(code, isActive) {
+    const codeElement = document.createElement('div');
+    codeElement.className = `access-code-item mb-2 p-3 border rounded ${isActive ? 'border-primary' : 'border-secondary'}`;
+    codeElement.style.opacity = isActive ? '1' : '0.6';
+
+    const expiresText = code.expires_at ?
+        `Platný do: ${new Date(code.expires_at).toLocaleString('cs-CZ')}` :
+        'Neomezená platnost';
+
+    const usesText = code.max_uses ?
+        `Použito: ${code.use_count}/${code.max_uses}` :
+        `Použito: ${code.use_count}×`;
+
+    const statusBadge = isActive ?
+        '<span class="badge badge-success ml-2">Aktivní</span>' :
+        '<span class="badge badge-secondary ml-2">Neaktivní</span>';
+
+    codeElement.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center mb-1">
+                    <strong class="text-primary font-monospace" style="font-size: 1.1rem;">${code.code}</strong>
+                    ${statusBadge}
+                </div>
+                <div class="text-muted small">
+                    <div>${expiresText}</div>
+                    <div>${usesText} • Vytvořen: ${new Date(code.created_at).toLocaleString('cs-CZ')}</div>
+                </div>
+            </div>
+            ${isActive ? `
+            <button class="btn btn-sm revoke-code-btn ml-3" data-code-id="${code.id}">
+                <i class="fas fa-ban"></i> Zrušit
+            </button>
+            ` : ''}
+        </div>
+    `;
+
+    // Přidat event listener pro aktivní kódy
+    if (isActive) {
+        const revokeBtn = codeElement.querySelector('.revoke-code-btn');
+        revokeBtn.addEventListener('click', function () {
+            const codeId = this.dataset.codeId;
+            revokeAccessCode(codeId);
+        });
+    }
+
+    return codeElement;
+}
+
+// server_panel.js - vylepšete funkci revokeAccessCode
+async function revokeAccessCode(codeId) {
+    if (!codeId) {
+        console.error('Chybějící codeId pro zrušení kódu');
+        return;
+    }
+
+    // Najdeme kód v seznamu pro zobrazení informace
+    const codeElement = document.querySelector(`.revoke-code-btn[data-code-id="${codeId}"]`);
+    const codeText = codeElement ? codeElement.closest('.access-code-item').querySelector('.text-primary').textContent : 'kód';
+
+    if (!confirm(`Opravdu chcete zrušit přístupový kód "${codeText}"?\n\nTato akce je nevratná a kód již nebude možné použít.`)) {
+        return;
+    }
+
+    const originalButton = codeElement;
+    const originalHtml = originalButton.innerHTML;
+
+    try {
+        originalButton.disabled = true;
+        originalButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        const response = await fetch('/api/server/player-access/revoke-code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ code_id: parseInt(codeId) })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Zobrazit potvrzení
+            showMessage('success', `Přístupový kód "${codeText}" byl úspěšně zrušen`);
+
+            // Načíst aktualizovaný seznam kódů
+            await loadAccessCodes();
+
+        } else {
+            throw new Error(result.error || 'Neznámá chyba při rušení kódu');
+        }
+
+    } catch (error) {
+        console.error('Chyba při rušení kódu:', error);
+        showMessage('error', `Chyba při rušení kódu: ${error.message}`);
+
+        // Obnovit tlačítko
+        originalButton.disabled = false;
+        originalButton.innerHTML = originalHtml;
+    }
+}
+
+// Pomocná funkce pro zobrazení zpráv
+function showMessage(type, text) {
+    const resultDiv = document.getElementById('generated-code-result');
+    const icon = type === 'success' ? 'fa-check' : 'fa-times';
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+
+    resultDiv.innerHTML = `<i class="fas ${icon}"></i> ${text}`;
+    resultDiv.className = `alert ${alertClass}`;
+    resultDiv.style.display = 'block';
+
+    // Skrýt zprávu po 5 sekundách
+    setTimeout(() => {
+        resultDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Volání v DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function () {
+    // ... existující kód ...
+    initPlayerAccessManagement();
+});
+
 document.addEventListener('DOMContentLoaded', loadAdminPanel);
 
 async function loadQuickViewPlugins() {
@@ -880,10 +1272,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
+// Inicializace nástrojů pro klienta (sjednocená verze)
 function initClientTools(serverId) {
     const container = document.getElementById('client-tools-container');
     if (!container) {
-        console.error('Container #client-tools-container nebyl nalezen');
+        console.warn('Container #client-tools-container nebyl nalezen');
         return;
     }
 
@@ -898,10 +1291,10 @@ function initClientTools(serverId) {
             description: 'Stáhněte si všechny módy, které potřebujete pro připojení k tomuto serveru. Balíček obsahuje kompletní sadu modů ve správných verzích.',
             buttonText: 'Stáhnout ZIP',
             buttonClass: 'btn-success',
-            onClick: async function() {
+            onClick: async function () {
                 const statusElement = document.getElementById(`${this.id}-status`);
                 const originalText = this.buttonElement.textContent;
-                
+
                 try {
                     statusElement.textContent = 'Připravuji ZIP balíček...';
                     statusElement.className = 'tool-status info';
@@ -909,16 +1302,10 @@ function initClientTools(serverId) {
                     this.buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Připravuji...';
 
                     const response = await fetch(`/api/mods/client-pack/download?server_id=${serverId}`);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
+                    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 
                     const blob = await response.blob();
-                    
-                    if (blob.size === 0) {
-                        throw new Error('Obdržen prázdný soubor');
-                    }
+                    if (blob.size === 0) throw new Error('Obdržen prázdný soubor');
 
                     // Vytvoření a stažení souboru
                     const url = URL.createObjectURL(blob);
@@ -940,13 +1327,24 @@ function initClientTools(serverId) {
                 } finally {
                     this.buttonElement.disabled = false;
                     this.buttonElement.innerHTML = originalText;
-                    
+
                     // Automaticky skrýt status zprávu po 10 sekundách
                     setTimeout(() => {
                         statusElement.textContent = '';
                         statusElement.className = 'tool-status';
                     }, 10000);
                 }
+            }
+        },
+        {
+            id: 'modpacks',
+            icon: 'fa-cubes',
+            title: 'Modpacky serveru',
+            description: 'Vyberte si z modpacků vytvořených administrátory serveru. Každý modpack obsahuje pečlivě vybrané módy pro specifické herní zážitky.',
+            buttonText: 'Zobrazit modpacky',
+            buttonClass: 'btn-info',
+            onClick: async function () {
+                await showModpacksSelection(serverId);
             }
         }
     ];
@@ -965,11 +1363,1008 @@ function initClientTools(serverId) {
         `;
         container.appendChild(card);
 
-        // Přidání event listeneru
         const button = document.getElementById(`tool-btn-${tool.id}`);
-        tool.buttonElement = button; // Uložení reference na tlačítko
+        tool.buttonElement = button;
         button.addEventListener('click', tool.onClick.bind(tool));
     });
 
     console.log(`Client tools initialized for server ${serverId}`);
+}
+
+/* ================================
+   MODPACK SELECTION MODAL
+================================ */
+async function showModpacksSelection(serverId) {
+    try {
+        const response = await fetch(`/api/modpacks/list?server_id=${serverId}`);
+        if (!response.ok) throw new Error('Chyba při načítání modpacků');
+
+        const modpacks = await response.json();
+
+        if (modpacks.length === 0) {
+            alert('Pro tento server nejsou k dispozici žádné modpacky.');
+            return;
+        }
+
+        // Modální okno
+        const modal = document.createElement('div');
+        modal.className = 'modpack-selection-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        `;
+
+        modal.innerHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <h4><i class="fas fa-cubes"></i> Vyberte modpack ke stažení</h4>
+                <div class="modpacks-selection-list">
+                    ${modpacks.map(pack => `
+                        <div class="modpack-tool-card">
+                            <h5>${pack.name}</h5>
+                            ${pack.description ? `<p>${pack.description}</p>` : ''}
+                            <div class="modpack-tool-stats">
+                                <span><i class="fas fa-cube"></i> ${pack.mod_count} módů</span>
+                                <span><i class="fas fa-download"></i> ${pack.download_count} stažení</span>
+                                <span><i class="fas fa-hdd"></i> ${formatSize(pack.file_size)}</span>
+                            </div>
+                            <button class="btn btn-success download-modpack-selection" data-pack-id="${pack.id}">
+                                <i class="fas fa-download"></i> Stáhnout tento modpack
+                            </button>
+                        </div>
+                    `).join('')}
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <button class="btn btn-danger" id="close-modpack-selection" 
+                            style="background: linear-gradient(135deg, #e74c3c, #c0392f); color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; font-weight: 600;">
+                            Zavřít
+                        </button>
+                    </div>
+    </div>
+`;
+
+        document.body.appendChild(modal);
+
+        // Zavření
+        modal.querySelector('#close-modpack-selection').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+            }
+        });
+
+        // Stahování vybraného modpacku
+        modal.querySelectorAll('.download-modpack-selection').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const packId = e.target.closest('.download-modpack-selection').dataset.packId;
+                document.body.removeChild(modal);
+                await downloadModpack(packId);
+            });
+        });
+
+    } catch (error) {
+        console.error('Chyba při načítání modpacků:', error);
+        alert('Chyba při načítání modpacků.');
+    }
+}
+
+/* ================================
+   Pomocné funkce
+================================ */
+function formatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+async function downloadModpack(packId) {
+    try {
+        const response = await fetch(`/api/modpacks/download?id=${packId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+        const blob = await response.blob();
+        if (blob.size === 0) throw new Error('Obdržen prázdný soubor');
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `modpack_${packId}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+    } catch (error) {
+        console.error('Chyba při stahování modpacku:', error);
+        alert('Nepodařilo se stáhnout modpack.');
+    }
+}
+
+
+
+// Inicializace správy modpacků
+async function initModpacksManagement() {
+    const serverId = getCurrentServerId();
+
+    try {
+        await loadAvailableMods();
+        await loadModpacksList();
+        setupModpacksEventListeners();
+        setupExpandableSections(); // Inicializace rozbalovacích sekcí
+        console.log('Modpacks management initialized for server', serverId);
+    } catch (error) {
+        console.error('Chyba při inicializaci modpacků:', error);
+    }
+}
+
+
+
+
+// Načtení dostupných módů pro checkboxy
+async function loadAvailableMods() {
+    const serverId = getCurrentServerId();
+    try {
+        const response = await fetch(`/api/mods/installed?server_id=${serverId}`);
+        if (!response.ok) throw new Error('Chyba při načítání módů');
+
+        const mods = await response.json();
+        const checklist = document.getElementById('mods-checklist');
+        if (!checklist) {
+            console.warn('Element #mods-checklist nebyl nalezen');
+            return;
+        }
+
+        checklist.innerHTML = '';
+
+        if (mods.length === 0) {
+            checklist.innerHTML = '<div class="text-muted">Na serveru nejsou nainstalovány žádné módy</div>';
+            return;
+        }
+
+        mods.forEach(mod => {
+            const modItem = document.createElement('div');
+            modItem.className = 'mod-checkbox-item';
+            modItem.innerHTML = `
+                <input type="checkbox" id="mod-${mod.id}" value="${mod.id}" class="mod-checkbox">
+                <div class="mod-info">
+                    <span class="mod-name">${mod.display_name}</span>
+                    <span class="mod-version">v${mod.version}</span>
+                    ${mod.description ? `<div class="mod-description">${mod.description}</div>` : ''}
+                </div>
+            `;
+            checklist.appendChild(modItem);
+        });
+
+    } catch (error) {
+        console.error('Chyba při načítání módů:', error);
+        const checklist = document.getElementById('mods-checklist');
+        if (checklist) {
+            checklist.innerHTML = '<div class="text-danger">Chyba při načítání módů</div>';
+        }
+    }
+}
+
+// Inicializace rozbalovacích sekcí
+function setupExpandableSections() {
+    const sectionHeaders = document.querySelectorAll('.section-header');
+
+    sectionHeaders.forEach(header => {
+        header.addEventListener('click', function () {
+            const section = this.dataset.section;
+            const content = document.getElementById(`${section}-content`);
+            const icon = this.querySelector('.toggle-icon');
+
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                this.classList.add('expanded');
+            } else {
+                content.style.display = 'none';
+                this.classList.remove('expanded');
+            }
+        });
+    });
+}
+
+// Upravené načtení seznamu modpacků s editací
+async function loadModpacksList() {
+    const serverId = getCurrentServerId();
+    try {
+        const response = await fetch(`/api/modpacks/list?server_id=${serverId}`);
+        if (!response.ok) throw new Error('Chyba při načítání modpacků');
+
+        const modpacks = await response.json();
+        currentModpacks = modpacks;
+        const listContainer = document.getElementById('modpacks-list');
+
+        if (!listContainer) {
+            console.warn('Element #modpacks-list nebyl nalezen');
+            return;
+        }
+
+        if (modpacks.length === 0) {
+            listContainer.innerHTML = '<div class="text-muted">Zatím nebyly vytvořeny žádné modpacky</div>';
+            return;
+        }
+
+        listContainer.innerHTML = '';
+        modpacks.forEach(pack => {
+            const packElement = document.createElement('div');
+            packElement.className = 'modpack-item';
+            packElement.id = `modpack-${pack.id}`;
+            packElement.innerHTML = `
+                <div class="modpack-header">
+                    <div>
+                        <h5 class="modpack-title">${pack.name}</h5>
+                        <div class="modpack-meta">
+                            Vytvořil ${pack.author} • ${pack.created_at}
+                        </div>
+                    </div>
+                    <div class="modpack-actions">
+                        <button class="btn btn-sm btn-primary edit-modpack-btn" data-pack-id="${pack.id}">
+                            <i class="fas fa-edit"></i> Upravit
+                        </button>
+                        <button class="btn btn-sm btn-danger delete-modpack-btn" data-pack-id="${pack.id}">
+                            <i class="fas fa-trash"></i> Smazat
+                        </button>
+                    </div>
+                </div>
+                ${pack.description ? `<div class="modpack-description">${pack.description}</div>` : ''}
+                <div class="modpack-stats">
+                    <span class="modpack-stat">
+                        <i class="fas fa-cube"></i> ${pack.mod_count} módů
+                    </span>
+                    <span class="modpack-stat">
+                        <i class="fas fa-download"></i> ${pack.download_count} stažení
+                    </span>
+                    <span class="modpack-stat">
+                        <i class="fas fa-hdd"></i> ${formatSize(pack.file_size)}
+                    </span>
+                </div>
+                <div class="modpack-mods-preview">
+                    <h6>Obsažené módy:</h6>
+                    <div class="mods-preview-list">
+                        ${pack.mods.slice(0, 8).map(mod =>
+                `<span class="mod-badge">${mod.name} v${mod.version}</span>`
+            ).join('')}
+                        ${pack.mods.length > 8 ? `<span class="mod-badge">+${pack.mods.length - 8} dalších</span>` : ''}
+                    </div>
+                </div>
+                <div id="edit-form-${pack.id}" class="edit-modpack-form" style="display: none;">
+                    <!-- Editovací formulář se načte dynamicky -->
+                </div>
+            `;
+            listContainer.appendChild(packElement);
+        });
+
+    } catch (error) {
+        console.error('Chyba při načítání modpacků:', error);
+        const listContainer = document.getElementById('modpacks-list');
+        if (listContainer) {
+            listContainer.innerHTML = '<div class="text-danger">Chyba při načítání modpacků</div>';
+        }
+    }
+}
+
+// Upravené event listenery s editací
+function setupModpacksEventListeners() {
+    // Vytvoření modpacku
+    const createBtn = document.getElementById('create-modpack-btn');
+    if (createBtn) {
+        createBtn.addEventListener('click', createModpack);
+    }
+
+    // Delegované event listenery pro seznam modpacků
+    const modpacksList = document.getElementById('modpacks-list');
+    if (modpacksList) {
+        modpacksList.addEventListener('click', function (e) {
+            // Editace modpacku
+            if (e.target.closest('.edit-modpack-btn')) {
+                const packId = e.target.closest('.edit-modpack-btn').dataset.packId;
+                toggleEditModpack(packId);
+            }
+
+            // Smazat modpack
+            if (e.target.closest('.delete-modpack-btn')) {
+                const packId = e.target.closest('.delete-modpack-btn').dataset.packId;
+                deleteModpack(packId);
+            }
+
+            // Uložení editace
+            if (e.target.closest('.save-edit-btn')) {
+                const packId = e.target.closest('.save-edit-btn').dataset.packId;
+                saveModpackEdit(packId);
+            }
+
+            // Zrušení editace
+            if (e.target.closest('.cancel-edit-btn')) {
+                const packId = e.target.closest('.cancel-edit-btn').dataset.packId;
+                cancelModpackEdit(packId);
+            }
+        });
+    }
+}
+
+// Vytvoření nového modpacku
+async function createModpack() {
+    const serverId = getCurrentServerId();
+    const nameInput = document.getElementById('modpack-name');
+    const descriptionInput = document.getElementById('modpack-description');
+
+    if (!nameInput || !descriptionInput) {
+        alert('Formulář pro vytváření modpacků není k dispozici');
+        return;
+    }
+
+    const name = nameInput.value.trim();
+    const description = descriptionInput.value.trim();
+
+    if (!name) {
+        alert('Zadejte název modpacku');
+        return;
+    }
+
+    // Získat vybrané módy
+    const selectedMods = Array.from(document.querySelectorAll('.mod-checkbox:checked'))
+        .map(checkbox => parseInt(checkbox.value));
+
+    if (selectedMods.length === 0) {
+        alert('Vyberte alespoň jeden mód pro modpack');
+        return;
+    }
+
+    const createBtn = document.getElementById('create-modpack-btn');
+    const originalText = createBtn.innerHTML;
+
+    try {
+        createBtn.disabled = true;
+        createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Vytvářím...';
+
+        const response = await fetch('/api/modpacks/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                server_id: serverId,
+                name: name,
+                description: description,
+                mod_ids: selectedMods
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`Modpack "${name}" byl úspěšně vytvořen!`);
+            // Resetovat formulář
+            nameInput.value = '';
+            descriptionInput.value = '';
+            document.querySelectorAll('.mod-checkbox').forEach(cb => cb.checked = false);
+            // Načíst aktualizovaný seznam
+            await loadModpacksList();
+        } else {
+            throw new Error(result.error || 'Neznámá chyba');
+        }
+
+    } catch (error) {
+        console.error('Chyba při vytváření modpacku:', error);
+        alert(`Chyba: ${error.message}`);
+    } finally {
+        createBtn.disabled = false;
+        createBtn.innerHTML = originalText;
+    }
+}
+
+
+// Přepnutí do režimu editace modpacku
+async function toggleEditModpack(packId) {
+    const packElement = document.getElementById(`modpack-${packId}`);
+    const editForm = document.getElementById(`edit-form-${packId}`);
+
+    if (!packElement || !editForm) return;
+
+    // Pokud už je v režimu editace, zrušit
+    if (packElement.classList.contains('modpack-editing')) {
+        cancelModpackEdit(packId);
+        return;
+    }
+
+    try {
+        // Načíst data modpacku
+        const pack = currentModpacks.find(p => p.id == packId);
+        if (!pack) return;
+
+        // Načíst dostupné módy pro checkboxy
+        const availableMods = await loadModsForEditing();
+
+        // Vytvořit editovací formulář
+        editForm.innerHTML = `
+            <h5><i class="fas fa-edit"></i> Úprava modpacku</h5>
+            <div class="form-group">
+                <label for="edit-name-${packId}">Název:</label>
+                <input type="text" id="edit-name-${packId}" class="form-control" value="${pack.name}">
+            </div>
+            <div class="form-group">
+                <label for="edit-description-${packId}">Popis:</label>
+                <textarea id="edit-description-${packId}" class="form-control" rows="2">${pack.description || ''}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Vyberte módy:</label>
+                <div class="mods-edit-checklist" id="edit-mods-${packId}">
+                    ${availableMods.map(mod => `
+                        <div class="mod-checkbox-item">
+                            <input type="checkbox" id="edit-mod-${mod.id}-${packId}" 
+                                   value="${mod.id}" ${pack.mods.some(m => m.id === mod.id) ? 'checked' : ''}
+                                   class="mod-checkbox">
+                            <div class="mod-info">
+                                <span class="mod-name">${mod.display_name}</span>
+                                <span class="mod-version">v${mod.version}</span>
+                                ${mod.description ? `<div class="mod-description">${mod.description}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="modpack-edit-actions">
+                <button class="btn btn-success save-edit-btn" data-pack-id="${packId}">
+                    <i class="fas fa-save"></i> Uložit změny
+                </button>
+                <button class="btn btn-secondary cancel-edit-btn" data-pack-id="${packId}">
+                    <i class="fas fa-times"></i> Zrušit
+                </button>
+            </div>
+        `;
+
+        // Zobrazit editovací formulář
+        editForm.style.display = 'block';
+        packElement.classList.add('modpack-editing');
+
+        // Skrýt hlavní akce během editace
+        const actions = packElement.querySelector('.modpack-actions');
+        if (actions) {
+            actions.style.opacity = '0.5';
+            actions.style.pointerEvents = 'none';
+        }
+
+    } catch (error) {
+        console.error('Chyba při přípravě editace:', error);
+        alert('Chyba při přípravě editace modpacku');
+    }
+}
+
+// Načtení módů pro editaci
+async function loadModsForEditing() {
+    const serverId = getCurrentServerId();
+    try {
+        const response = await fetch(`/api/mods/installed?server_id=${serverId}`);
+        if (!response.ok) throw new Error('Chyba při načítání módů');
+        return await response.json();
+    } catch (error) {
+        console.error('Chyba při načítání módů pro editaci:', error);
+        return [];
+    }
+}
+
+// Uložení změn modpacku
+async function saveModpackEdit(packId) {
+    const nameInput = document.getElementById(`edit-name-${packId}`);
+    const descriptionInput = document.getElementById(`edit-description-${packId}`);
+
+    if (!nameInput) return;
+
+    const name = nameInput.value.trim();
+    const description = descriptionInput.value.trim();
+
+    if (!name) {
+        alert('Zadejte název modpacku');
+        return;
+    }
+
+    // Získat vybrané módy
+    const selectedMods = Array.from(document.querySelectorAll(`#edit-mods-${packId} .mod-checkbox:checked`))
+        .map(checkbox => parseInt(checkbox.value));
+
+    if (selectedMods.length === 0) {
+        alert('Vyberte alespoň jeden mód pro modpack');
+        return;
+    }
+
+    const saveBtn = document.querySelector(`.save-edit-btn[data-pack-id="${packId}"]`);
+    const originalText = saveBtn.innerHTML;
+
+    try {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ukládám...';
+
+        const response = await fetch(`/api/modpacks/update/${packId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                description: description,
+                mod_ids: selectedMods
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('Modpack byl úspěšně aktualizován!');
+            await loadModpacksList(); // Znovu načíst seznam
+        } else {
+            throw new Error(result.error || 'Neznámá chyba');
+        }
+
+    } catch (error) {
+        console.error('Chyba při ukládání změn:', error);
+        alert(`Chyba: ${error.message}`);
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    }
+}
+
+// Zrušení editace
+function cancelModpackEdit(packId) {
+    const packElement = document.getElementById(`modpack-${packId}`);
+    const editForm = document.getElementById(`edit-form-${packId}`);
+
+    if (packElement && editForm) {
+        packElement.classList.remove('modpack-editing');
+        editForm.style.display = 'none';
+
+        // Obnovit hlavní akce
+        const actions = packElement.querySelector('.modpack-actions');
+        if (actions) {
+            actions.style.opacity = '1';
+            actions.style.pointerEvents = 'auto';
+        }
+    }
+}
+
+// Smazání modpacku
+async function deleteModpack(packId) {
+    const pack = currentModpacks.find(p => p.id == packId);
+    if (!pack) return;
+
+    if (!confirm(`Opravdu chcete smazat modpack "${pack.name}"?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/modpacks/delete/${packId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('Modpack byl smazán');
+            await loadModpacksList();
+        } else {
+            throw new Error(result.error || 'Neznámá chyba');
+        }
+
+    } catch (error) {
+        console.error('Chyba při mazání modpacku:', error);
+        alert(`Chyba: ${error.message}`);
+    }
+}
+
+// ===============================
+//   INFORMACE PRO HRÁČE – MODUL
+// ===============================
+
+let currentNotices = [];
+
+// Inicializace informační sekce
+async function initPlayerInfoSection() {
+    const serverId = getCurrentServerId();
+
+    if (!serverId) {
+        console.error('Nelze inicializovat player info sekci - chybějící serverId');
+        return;
+    }
+
+    await loadNotices();
+    setupNoticesEventListeners();
+    initTextTools(); // toolbar pro vytváření oznámení
+
+    // Zkontrolovat admin přístup pouze pokud máme serverId
+    if (serverId) {
+        await checkAdminAccessForNotices(serverId);
+    }
+}
+
+// Nová pomocná funkce pro kontrolu admin přístupu pro oznámení
+async function checkAdminAccessForNotices(serverId) {
+    try {
+        const response = await fetch(`/api/server/admins?server_id=${serverId}`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const panel = document.getElementById('notice-management-panel');
+
+        if (panel && data.is_owner) {
+            panel.style.display = 'block';
+        }
+    } catch (err) {
+        console.error('Chyba při kontrole práv pro oznámení:', err);
+    }
+}
+
+
+// ===============================
+//       NAČÍTÁNÍ OZNÁMENÍ
+// ===============================
+async function loadNotices() {
+    const serverId = getCurrentServerId();
+    try {
+        const response = await fetch(`/api/notices?server_id=${serverId}`);
+        if (!response.ok) throw new Error('Chyba při načítání oznámení');
+
+        const notices = await response.json();
+        currentNotices = notices;
+
+        const container = document.getElementById('notices-container');
+        if (!container) return;
+
+        if (notices.length === 0) {
+            container.innerHTML = '<div class="text-muted">Žádná oznámení</div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        notices.forEach(notice => {
+            const noticeElement = document.createElement('div');
+            noticeElement.className = `notice-item ${notice.type} ${notice.is_pinned ? 'pinned' : ''}`;
+            noticeElement.setAttribute('data-notice-id', notice.id);
+
+            noticeElement.innerHTML = `
+                <div class="notice-header">
+                    <div>
+                        <h5 class="notice-title">
+                            ${notice.is_pinned ? '<i class="fas fa-thumbtack"></i>' : ''}
+                            ${notice.title}
+                            <span class="notice-badge badge-${notice.type}">
+                                ${getNoticeTypeLabel(notice.type)}
+                            </span>
+                            ${!notice.is_active ? '<span class="badge badge-secondary">Skryté</span>' : ''}
+                        </h5>
+                        <div class="notice-meta">
+                            ${notice.author} • ${notice.created_at}
+                            ${notice.updated_at ? ` (upraveno ${notice.updated_at})` : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="notice-content formatted">
+                    ${formatNoticeContent(notice.content)}
+                </div>
+                ${notice.can_edit ? `
+                    <div class="notice-actions">
+                        <button class="btn btn-sm btn-primary edit-notice-btn" data-notice-id="${notice.id}">
+                            <i class="fas fa-edit"></i> Upravit
+                        </button>
+                        <button class="btn btn-sm btn-danger delete-notice-btn" data-notice-id="${notice.id}">
+                            <i class="fas fa-trash"></i> Smazat
+                        </button>
+                        <button class="btn btn-sm btn-secondary toggle-notice-btn" 
+                                data-notice-id="${notice.id}" 
+                                data-active="${notice.is_active}">
+                            <i class="fas ${notice.is_active ? 'fa-eye-slash' : 'fa-eye'}"></i> 
+                            ${notice.is_active ? 'Skrýt' : 'Zobrazit'}
+                        </button>
+                    </div>
+                ` : ''}
+            `;
+            container.appendChild(noticeElement);
+        });
+    } catch (error) {
+        console.error('Chyba při načítání oznámení:', error);
+        const container = document.getElementById('notices-container');
+        if (container) {
+            container.innerHTML = '<div class="text-danger">Chyba při načítání oznámení</div>';
+        }
+    }
+}
+
+
+// ===============================
+//        TEXTOVÉ NÁSTROJE
+// ===============================
+function initTextTools() {
+    const toolbar = document.querySelector('.text-toolbar');
+    if (!toolbar) return;
+
+    toolbar.addEventListener('click', function (e) {
+        const btn = e.target.closest('.text-tool-btn');
+        if (!btn) return;
+
+        const tag = btn.dataset.tag;
+        const textarea = document.getElementById('notice-content');
+        if (textarea) applyTextFormatting(tag, textarea);
+    });
+}
+
+function applyTextFormatting(tag, textarea) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = textarea.value.substring(start, end);
+
+    const formats = {
+        'bold': { prefix: '**', suffix: '**', placeholder: 'tučný text' },
+        'italic': { prefix: '*', suffix: '*', placeholder: 'kurzíva' },
+        'underline': { prefix: '<u>', suffix: '</u>', placeholder: 'podtržený text' },
+        'code': { prefix: '`', suffix: '`', placeholder: 'kód' },
+        'link': { prefix: '[', suffix: '](https://example.com)', placeholder: 'odkaz' },
+        'list-ul': { prefix: '- ', suffix: '', placeholder: 'položka seznamu' },
+        'list-ol': { prefix: '1. ', suffix: '', placeholder: 'položka seznamu' }
+    };
+
+    const fmt = formats[tag];
+    if (!fmt) return;
+
+    const newText = fmt.prefix + (selected || fmt.placeholder) + fmt.suffix;
+    textarea.value = textarea.value.substring(0, start) + newText + textarea.value.substring(end);
+
+    const cursorPos = start + fmt.prefix.length;
+    if (!selected) {
+        textarea.setSelectionRange(cursorPos, cursorPos + fmt.placeholder.length);
+    } else {
+        textarea.setSelectionRange(cursorPos + selected.length + fmt.suffix.length, cursorPos + selected.length + fmt.suffix.length);
+    }
+
+    textarea.focus();
+}
+
+
+// ===============================
+//     FORMÁTOVÁNÍ TEXTU
+// ===============================
+function formatNoticeContent(text) {
+    if (!text) return '';
+
+    return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/<u>(.*?)<\/u>/g, '<u>$1</u>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+        .replace(/^[-*] (.*)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+        .replace(/^\d+\. (.*)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ol>$1</ol>')
+        .replace(/\n/g, '<br>');
+}
+
+
+// ===============================
+//        SPRÁVA OZNÁMENÍ
+// ===============================
+function setupNoticesEventListeners() {
+    const createBtn = document.getElementById('create-notice-btn');
+    if (createBtn) createBtn.addEventListener('click', createNotice);
+
+    const noticesContainer = document.getElementById('notices-container');
+    if (!noticesContainer) return;
+
+    noticesContainer.addEventListener('click', async (e) => {
+        const noticeId = e.target.closest('[data-notice-id]')?.dataset.noticeId;
+        if (!noticeId) return;
+
+        if (e.target.closest('.edit-notice-btn')) editNotice(noticeId);
+        if (e.target.closest('.delete-notice-btn')) deleteNotice(noticeId);
+        if (e.target.closest('.toggle-notice-btn')) {
+            const isActive = e.target.closest('.toggle-notice-btn').dataset.active === 'true';
+            toggleNotice(noticeId, !isActive);
+        }
+        if (e.target.closest('.save-edit-notice-btn')) saveNoticeEdit(noticeId);
+        if (e.target.closest('.cancel-edit-notice-btn')) cancelNoticeEdit(noticeId);
+    });
+}
+
+
+// ===============================
+//       VYTVOŘENÍ OZNÁMENÍ
+// ===============================
+async function createNotice() {
+    const serverId = getCurrentServerId();
+    const title = document.getElementById('notice-title')?.value.trim();
+    const content = document.getElementById('notice-content')?.value.trim();
+    const type = document.getElementById('notice-type')?.value;
+    const isPinned = document.getElementById('notice-pinned')?.checked;
+
+    if (!title || !content) return alert('Vyplňte nadpis a obsah oznámení');
+
+    const btn = document.getElementById('create-notice-btn');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Vytvářím...';
+
+    try {
+        const res = await fetch('/api/notices/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ server_id: serverId, title, content, type, is_pinned: isPinned })
+        });
+
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error || 'Neznámá chyba');
+
+        alert('Oznámení bylo vytvořeno');
+        await loadNotices();
+    } catch (err) {
+        alert(`Chyba: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    }
+}
+
+
+// ===============================
+//       EDITACE / MAZÁNÍ
+// ===============================
+async function editNotice(noticeId) {
+    const notice = currentNotices.find(n => n.id == noticeId);
+    if (!notice) return;
+
+    document.querySelectorAll('.edit-notice-form').forEach(f => f.remove());
+    const original = document.querySelector(`[data-notice-id="${noticeId}"]`);
+    if (!original) return;
+
+    const editForm = document.createElement('div');
+    editForm.className = 'edit-notice-form';
+    editForm.innerHTML = `
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h6><i class="fas fa-edit"></i> Úprava oznámení</h6>
+            </div>
+            <div class="card-body">
+                <input type="text" class="form-control mb-2 edit-notice-title" value="${notice.title}">
+                
+                <div class="text-toolbar mb-2">
+                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="bold"><i class="fas fa-bold"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="italic"><i class="fas fa-italic"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="underline"><i class="fas fa-underline"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="code"><i class="fas fa-code"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="link"><i class="fas fa-link"></i></button>
+                </div>
+
+                <textarea class="form-control mb-3 edit-notice-content" rows="5">${notice.content}</textarea>
+
+                <select class="form-control mb-2 edit-notice-type">
+                    <option value="info" ${notice.type === 'info' ? 'selected' : ''}>ℹ️ Informace</option>
+                    <option value="warning" ${notice.type === 'warning' ? 'selected' : ''}>⚠️ Varování</option>
+                    <option value="important" ${notice.type === 'important' ? 'selected' : ''}>🔔 Důležité</option>
+                    <option value="update" ${notice.type === 'update' ? 'selected' : ''}>🔄 Aktualizace</option>
+                </select>
+
+                <div class="form-check mb-2">
+                    <input class="form-check-input edit-notice-pinned" type="checkbox" ${notice.is_pinned ? 'checked' : ''}> Připnout
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input edit-notice-active" type="checkbox" ${notice.is_active ? 'checked' : ''}> Aktivní
+                </div>
+
+                <button class="btn btn-success save-edit-notice-btn" data-notice-id="${noticeId}"><i class="fas fa-save"></i> Uložit</button>
+                <button class="btn btn-secondary cancel-edit-notice-btn" data-notice-id="${noticeId}"><i class="fas fa-times"></i> Zrušit</button>
+            </div>
+        </div>
+    `;
+
+    original.style.display = 'none';
+    original.parentNode.insertBefore(editForm, original);
+    initTextToolsForElement(editForm);
+}
+
+function initTextToolsForElement(parent) {
+    const toolbar = parent.querySelector('.text-toolbar');
+    if (!toolbar) return;
+    toolbar.addEventListener('click', e => {
+        const btn = e.target.closest('.text-tool-btn');
+        if (!btn) return;
+        const tag = btn.dataset.tag;
+        const textarea = parent.querySelector('textarea');
+        applyTextFormatting(tag, textarea);
+    });
+}
+
+async function saveNoticeEdit(noticeId) {
+    const t = s => document.querySelector(`.edit-notice-${s}`);
+    const data = {
+        title: t('title').value.trim(),
+        content: t('content').value.trim(),
+        type: t('type').value,
+        is_pinned: t('pinned').checked,
+        is_active: t('active').checked
+    };
+    if (!data.title || !data.content) return alert('Vyplňte všechna pole.');
+
+    try {
+        const res = await fetch(`/api/notices/update/${noticeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
+        await loadNotices();
+    } catch (err) {
+        alert(`Chyba: ${err.message}`);
+    }
+}
+
+function cancelNoticeEdit(noticeId) {
+    const form = document.querySelector('.edit-notice-form');
+    const notice = document.querySelector(`[data-notice-id="${noticeId}"]`);
+    if (form) form.remove();
+    if (notice) notice.style.display = 'block';
+}
+
+async function deleteNotice(id) {
+    if (!confirm('Opravdu chcete smazat toto oznámení?')) return;
+    try {
+        const res = await fetch(`/api/notices/delete/${id}`, { method: 'DELETE' });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
+        await loadNotices();
+    } catch (err) {
+        alert(`Chyba: ${err.message}`);
+    }
+}
+
+async function toggleNotice(id, isActive) {
+    try {
+        await fetch(`/api/notices/update/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: isActive })
+        });
+        await loadNotices();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+
+// ===============================
+//      DOPLŇKOVÉ FUNKCE
+// ===============================
+async function checkAdminAccess(serverId) {
+    try {
+        const response = await fetch(`/api/server/admins?server_id=${serverId}`);
+        const data = await response.json();
+
+        // Získání aktuálního uživatele z localStorage nebo session
+        const currentUser = JSON.parse(localStorage.getItem('current_user') || sessionStorage.getItem('current_user') || '{}');
+
+        return data.is_owner || (data.admins && data.admins.some(admin => admin.user_id === currentUser.id));
+    } catch (error) {
+        console.error('Chyba při kontrole admin práv:', error);
+        return false;
+    }
+}
+
+function getNoticeTypeLabel(type) {
+    return {
+        info: 'Informace',
+        warning: 'Varování',
+        important: 'Důležité',
+        update: 'Aktualizace'
+    }[type] || type;
 }
