@@ -1,4 +1,5 @@
 import os
+import subprocess
 import shutil
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -10,9 +11,8 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app import app
-from models import db, Mod, ModUpdateLog, Plugin, PluginUpdateLog, BuildType, BuildVersion
-from mc_server import BASE_MODS_PATH, BASE_PLUGIN_PATH, BASE_BUILD_PATH
-
+from models import db, Mod, ModUpdateLog, Plugin, PluginUpdateLog, BuildType, BuildVersion, Server, User
+from mc_server import BASE_MODS_PATH, BASE_BUILD_PATH, BASE_PLUGIN_PATH, BASE_SERVERS_PATH
 
 class IntegratedManagerGUI:
     def __init__(self, root):
@@ -36,7 +36,11 @@ class IntegratedManagerGUI:
         self.frame_builds = ttk.Frame(self.notebook)
         self.notebook.add(self.frame_builds, text="Správa buildů")
 
-        # Tab 4 - Statistiky
+        # Tab 4 - Servery
+        self.frame_servers = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_servers, text="Správa serverů")
+
+        # Tab 5 - Statistiky
         self.frame_stats = ttk.Frame(self.notebook)
         self.notebook.add(self.frame_stats, text="Statistiky a nástroje")
 
@@ -44,6 +48,7 @@ class IntegratedManagerGUI:
         self.setup_mods_tab()
         self.setup_plugins_tab()
         self.setup_builds_tab()
+        self.setup_servers_tab()
         self.setup_stats_tab()
 
         # Načtení dat při startu
@@ -216,6 +221,51 @@ class IntegratedManagerGUI:
         ttk.Button(btn_frame, text="Smazat všechny tohoto typu", command=self.delete_all_builds_of_type).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Smazat všechny buildy", command=self.delete_all_builds).pack(side=tk.LEFT, padx=5)
 
+    def setup_servers_tab(self):
+        """Nastavení záložky pro správu serverů"""
+        main_frame = ttk.Frame(self.frame_servers)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Horní panel s tlačítky
+        top_frame = ttk.Frame(main_frame)
+        top_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Button(top_frame, text="Obnovit seznam", command=self.load_servers).pack(side=tk.LEFT, padx=5)
+        ttk.Button(top_frame, text="Přidat server", command=self.add_server).pack(side=tk.LEFT, padx=5)
+        ttk.Button(top_frame, text="Upravit server", command=self.edit_server).pack(side=tk.LEFT, padx=5)
+        ttk.Button(top_frame, text="Smazat server", command=self.delete_server).pack(side=tk.LEFT, padx=5)
+        ttk.Button(top_frame, text="Zobrazit podrobnosti", command=self.show_server_details).pack(side=tk.LEFT, padx=5)
+        ttk.Button(top_frame, text="Spravovat adminy", command=self.manage_server_admins).pack(side=tk.LEFT, padx=5)
+        ttk.Button(top_frame, text="Změnit vlastníka", command=self.change_server_owner).pack(side=tk.LEFT, padx=5)
+
+        # Seznam serverů
+        columns = ("id", "name", "owner", "service_level", "build_type", "mc_version", "port")
+        self.tree_servers = ttk.Treeview(main_frame, columns=columns, show="headings")
+        
+        server_headings = [
+            ("id", "ID", 50),
+            ("name", "Název", 150),
+            ("owner", "Vlastník", 100),
+            ("service_level", "Úroveň", 80),
+            ("build_type", "Typ buildu", 100),
+            ("mc_version", "MC verze", 80),
+            ("port", "Port", 80)
+        ]
+        
+        for col, text, width in server_headings:
+            self.tree_servers.heading(col, text=text)
+            self.tree_servers.column(col, width=width)
+        
+        self.tree_servers.pack(fill=tk.BOTH, expand=True)
+
+        # Scrollbar pro servery
+        scrollbar = ttk.Scrollbar(main_frame, orient=tk.VERTICAL, command=self.tree_servers.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree_servers.configure(yscrollcommand=scrollbar.set)
+
+        # Dvojklik pro zobrazení detailů
+        self.tree_servers.bind("<Double-1>", lambda e: self.show_server_details())
+
     def setup_stats_tab(self):
         """Nastavení záložky pro statistiky a nástroje"""
         main_frame = ttk.Frame(self.frame_stats)
@@ -230,6 +280,7 @@ class IntegratedManagerGUI:
         ttk.Button(tools_frame, text="Najít sirotky (pluginů)", command=self.find_plugin_orphans).pack(side=tk.LEFT, padx=5, pady=5)
         ttk.Button(tools_frame, text="Statistiky modů", command=self.show_mod_stats).pack(side=tk.LEFT, padx=5, pady=5)
         ttk.Button(tools_frame, text="Statistiky pluginů", command=self.show_plugin_stats).pack(side=tk.LEFT, padx=5, pady=5)
+        ttk.Button(tools_frame, text="Statistiky serverů", command=self.show_server_stats).pack(side=tk.LEFT, padx=5, pady=5)
 
         # Sekce pro statistiky
         stats_frame = ttk.LabelFrame(main_frame, text="Rychlé statistiky")
@@ -253,7 +304,433 @@ class IntegratedManagerGUI:
         self.load_plugins_db()
         self.load_plugins_disk()
         self.load_build_types()
+        self.load_servers()
         self.update_quick_stats()
+
+    # === SERVER FUNCTIONS ===
+    def load_servers(self):
+        """Načte servery z databáze"""
+        for row in self.tree_servers.get_children():
+            self.tree_servers.delete(row)
+        
+        with app.app_context():
+            servers = Server.query.all()
+            for server in servers:
+                build_type = server.build_version.build_type.name if server.build_version else "N/A"
+                mc_version = server.build_version.mc_version if server.build_version else "N/A"
+                owner = server.owner.username if server.owner else "N/A"
+                
+                self.tree_servers.insert("", tk.END, values=(
+                    server.id,
+                    server.name,
+                    owner,
+                    server.service_level,
+                    build_type,
+                    mc_version,
+                    server.server_port
+                ))
+
+    def add_server(self):
+        """Spustí create_data.py pro přidání nového serveru"""
+        try:
+            # Cesta k create_data.py
+            create_data_script = os.path.join(os.path.dirname(__file__), 'create_data.py')
+            
+            if not os.path.exists(create_data_script):
+                messagebox.showerror("Chyba", f"Soubor {create_data_script} nebyl nalezen")
+                return
+
+            # Spuštění create_data.py
+            result = subprocess.run([
+                sys.executable, create_data_script
+            ], cwd=os.path.dirname(__file__))
+
+            if result.returncode == 0:
+                # Pokud se skript úspěšně dokončil, obnovíme seznam serverů
+                self.load_servers()
+                messagebox.showinfo("Hotovo", "create_data.py byl úspěšně spuštěn")
+            else:
+                messagebox.showwarning("Upozornění", f"create_data.py skončil s kódem: {result.returncode}")
+
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Nepodařilo se spustit create_data.py: {e}")
+
+    def edit_server(self):
+        """Upraví vybraný server"""
+        selection = self.tree_servers.selection()
+        if not selection:
+            messagebox.showwarning("Varování", "Vyberte server pro úpravu")
+            return
+
+        server_id = self.tree_servers.item(selection[0])["values"][0]
+
+        with app.app_context():
+            server = Server.query.get(server_id)
+            if not server:
+                messagebox.showerror("Chyba", "Server nebyl nalezen")
+                return
+
+            users = User.query.all()
+            build_versions = BuildVersion.query.all()
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Upravit server")
+        dialog.geometry("500x400")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        ttk.Label(dialog, text="Název serveru:").pack(pady=5)
+        name_entry = ttk.Entry(dialog, width=50)
+        name_entry.insert(0, server.name)
+        name_entry.pack(pady=5)
+
+        ttk.Label(dialog, text="Vlastník:").pack(pady=5)
+        owner_var = tk.StringVar()
+        owner_combo = ttk.Combobox(dialog, textvariable=owner_var, state="readonly")
+        owner_combo['values'] = [f"{user.id}: {user.username}" for user in users]
+        owner_combo.set(f"{server.owner_id}: {server.owner.username}")
+        owner_combo.pack(pady=5)
+
+        ttk.Label(dialog, text="Úroveň služby:").pack(pady=5)
+        service_var = tk.StringVar(value=str(server.service_level))
+        service_combo = ttk.Combobox(dialog, textvariable=service_var, values=["1", "2", "3"], state="readonly")
+        service_combo.pack(pady=5)
+
+        ttk.Label(dialog, text="Build verze:").pack(pady=5)
+        build_var = tk.StringVar()
+        build_combo = ttk.Combobox(dialog, textvariable=build_var, state="readonly")
+        build_combo['values'] = [f"{bv.id}: {bv.build_type.name} {bv.mc_version}" for bv in build_versions]
+        if server.build_version:
+            build_combo.set(f"{server.build_version_id}: {server.build_version.build_type.name} {server.build_version.mc_version}")
+        build_combo.pack(pady=5)
+
+        ttk.Label(dialog, text="Port serveru:").pack(pady=5)
+        port_entry = ttk.Entry(dialog, width=50)
+        port_entry.insert(0, str(server.server_port))
+        port_entry.pack(pady=5)
+
+        def save_changes():
+            name = name_entry.get().strip()
+            owner_id = owner_var.get().split(":")[0] if ":" in owner_var.get() else ""
+            service_level = service_var.get()
+            build_version_id = build_var.get().split(":")[0] if ":" in build_var.get() else ""
+            port = port_entry.get().strip()
+
+            if not all([name, owner_id, service_level, build_version_id, port]):
+                messagebox.showerror("Chyba", "Vyplňte všechna pole")
+                return
+
+            try:
+                port = int(port)
+            except ValueError:
+                messagebox.showerror("Chyba", "Port musí být číslo")
+                return
+
+            with app.app_context():
+                try:
+                    server.name = name
+                    server.owner_id = int(owner_id)
+                    server.service_level = int(service_level)
+                    server.build_version_id = int(build_version_id)
+                    server.server_port = port
+                    server.query_port = port
+
+                    db.session.commit()
+                    dialog.destroy()
+                    self.load_servers()
+                    messagebox.showinfo("Hotovo", f"Server '{name}' byl upraven")
+                except Exception as e:
+                    db.session.rollback()
+                    messagebox.showerror("Chyba", f"Nepodařilo se upravit server: {e}")
+
+        ttk.Button(dialog, text="Uložit změny", command=save_changes).pack(pady=10)
+        ttk.Button(dialog, text="Zrušit", command=dialog.destroy).pack(pady=5)
+
+    def delete_server(self):
+        """Smaže vybraný server"""
+        selection = self.tree_servers.selection()
+        if not selection:
+            messagebox.showwarning("Varování", "Vyberte server pro smazání")
+            return
+
+        server_id = self.tree_servers.item(selection[0])["values"][0]
+        server_name = self.tree_servers.item(selection[0])["values"][1]
+
+        if not messagebox.askyesno("Potvrzení", f"Opravdu chcete smazat server '{server_name}'?\n\nTato akce je nevratná a smaže všechny související data!"):
+            return
+
+        with app.app_context():
+            server = Server.query.get(server_id)
+            if not server:
+                messagebox.showerror("Chyba", "Server nebyl nalezen")
+                return
+
+            try:
+                # Smazání všech souvisejících dat
+                from models import PlayerServerAccess, PlayerAccessCode, PlayerNotice
+                
+                # Smazání přístupů hráčů
+                PlayerServerAccess.query.filter_by(server_id=server_id).delete()
+                
+                # Smazání přístupových kódů
+                PlayerAccessCode.query.filter_by(server_id=server_id).delete()
+                
+                # Smazání oznámení
+                PlayerNotice.query.filter_by(server_id=server_id).delete()
+                
+                # Smazání serveru
+                db.session.delete(server)
+                db.session.commit()
+
+                self.load_servers()
+                messagebox.showinfo("Hotovo", f"Server '{server_name}' byl smazán")
+            except Exception as e:
+                db.session.rollback()
+                messagebox.showerror("Chyba", f"Nepodařilo se smazat server: {e}")
+
+    def show_server_details(self):
+        """Zobrazí podrobnosti o serveru"""
+        selection = self.tree_servers.selection()
+        if not selection:
+            messagebox.showwarning("Varování", "Vyberte server")
+            return
+
+        server_id = self.tree_servers.item(selection[0])["values"][0]
+
+        with app.app_context():
+            server = Server.query.get(server_id)
+            if not server:
+                messagebox.showerror("Chyba", "Server nebyl nalezen")
+                return
+
+            dialog = tk.Toplevel(self.root)
+            dialog.title(f"Podrobnosti serveru - {server.name}")
+            dialog.geometry("600x500")
+            dialog.transient(self.root)
+
+            text_widget = tk.Text(dialog, wrap=tk.WORD)
+            text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+            # Základní informace
+            text_widget.insert(tk.END, "=== ZÁKLADNÍ INFORMACE ===\n\n")
+            text_widget.insert(tk.END, f"ID: {server.id}\n")
+            text_widget.insert(tk.END, f"Název: {server.name}\n")
+            text_widget.insert(tk.END, f"Vlastník: {server.owner.username} (ID: {server.owner_id})\n")
+            text_widget.insert(tk.END, f"Úroveň služby: {server.service_level}\n")
+            text_widget.insert(tk.END, f"Port: {server.server_port}\n")
+            text_widget.insert(tk.END, f"Query port: {server.query_port}\n")
+            
+            if server.build_version:
+                text_widget.insert(tk.END, f"Build: {server.build_version.build_type.name}\n")
+                text_widget.insert(tk.END, f"MC verze: {server.build_version.mc_version}\n")
+                text_widget.insert(tk.END, f"Build číslo: {server.build_version.build_number or 'N/A'}\n")
+
+            # Admini
+            text_widget.insert(tk.END, "\n=== ADMINI ===\n\n")
+            admins = server.admins
+            if admins:
+                for admin in admins:
+                    text_widget.insert(tk.END, f"- {admin.username} ({admin.email})\n")
+            else:
+                text_widget.insert(tk.END, "Žádní admini\n")
+
+            # Pluginy
+            text_widget.insert(tk.END, "\n=== PLUGINY ===\n\n")
+            plugins = server.plugins.all()
+            if plugins:
+                for plugin in plugins:
+                    text_widget.insert(tk.END, f"- {plugin.display_name or plugin.name} v{plugin.version}\n")
+            else:
+                text_widget.insert(tk.END, "Žádné pluginy\n")
+
+            # Módy
+            text_widget.insert(tk.END, "\n=== MÓDY ===\n\n")
+            mods = server.mods.all()
+            if mods:
+                for mod in mods:
+                    text_widget.insert(tk.END, f"- {mod.display_name or mod.name} v{mod.version}\n")
+            else:
+                text_widget.insert(tk.END, "Žádné módy\n")
+
+            # Přístupové kódy
+            text_widget.insert(tk.END, "\n=== PŘÍSTUPOVÉ KÓDY ===\n\n")
+            access_codes = server.player_access_codes
+            if access_codes:
+                for code in access_codes:
+                    status = "Aktivní" if code.is_active else "Neaktivní"
+                    expires = code.expires_at.strftime('%d.%m.%Y %H:%M') if code.expires_at else "Nikdy"
+                    text_widget.insert(tk.END, f"- {code.access_code} (použití: {code.use_count}/{code.max_uses or '∞'}, expiruje: {expires}, {status})\n")
+            else:
+                text_widget.insert(tk.END, "Žádné přístupové kódy\n")
+
+            text_widget.config(state=tk.DISABLED)
+
+    def manage_server_admins(self):
+        """Spravuje adminy serveru"""
+        selection = self.tree_servers.selection()
+        if not selection:
+            messagebox.showwarning("Varování", "Vyberte server")
+            return
+
+        server_id = self.tree_servers.item(selection[0])["values"][0]
+        server_name = self.tree_servers.item(selection[0])["values"][1]
+
+        with app.app_context():
+            server = Server.query.get(server_id)
+            if not server:
+                messagebox.showerror("Chyba", "Server nebyl nalezen")
+                return
+
+            users = User.query.all()
+            current_admins = server.admins
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Správa adminů - {server_name}")
+        dialog.geometry("500x400")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # Seznam aktuálních adminů
+        ttk.Label(dialog, text="Aktuální admini:").pack(pady=5)
+        admin_listbox = tk.Listbox(dialog, height=8)
+        admin_listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        for admin in current_admins:
+            admin_listbox.insert(tk.END, f"{admin.id}: {admin.username} ({admin.email})")
+
+        # Přidání admina
+        add_frame = ttk.Frame(dialog)
+        add_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        ttk.Label(add_frame, text="Přidat admina:").pack(side=tk.LEFT)
+        admin_var = tk.StringVar()
+        admin_combo = ttk.Combobox(add_frame, textvariable=admin_var, state="readonly")
+        admin_combo['values'] = [f"{user.id}: {user.username}" for user in users if user not in current_admins and user.id != server.owner_id]
+        admin_combo.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+
+        def add_admin():
+            selected = admin_var.get()
+            if not selected:
+                return
+
+            user_id = int(selected.split(":")[0])
+            
+            with app.app_context():
+                user = User.query.get(user_id)
+                if user and user not in server.admins:
+                    server.admins.append(user)
+                    db.session.commit()
+                    
+                    # Aktualizace seznamu
+                    admin_listbox.insert(tk.END, f"{user.id}: {user.username} ({user.email})")
+                    admin_combo['values'] = [f"{u.id}: {u.username}" for u in users if u not in server.admins and u.id != server.owner_id]
+                    admin_var.set("")
+
+        ttk.Button(add_frame, text="Přidat", command=add_admin).pack(side=tk.LEFT, padx=5)
+
+        # Odebrání admina
+        def remove_admin():
+            selection = admin_listbox.curselection()
+            if not selection:
+                return
+
+            selected_text = admin_listbox.get(selection[0])
+            user_id = int(selected_text.split(":")[0])
+            
+            with app.app_context():
+                user = User.query.get(user_id)
+                if user and user in server.admins:
+                    server.admins.remove(user)
+                    db.session.commit()
+                    
+                    # Aktualizace seznamu
+                    admin_listbox.delete(selection[0])
+                    admin_combo['values'] = [f"{u.id}: {u.username}" for u in users if u not in server.admins and u.id != server.owner_id]
+
+        ttk.Button(dialog, text="Odebrat vybraného admina", command=remove_admin).pack(pady=5)
+
+    def change_server_owner(self):
+        """Změní vlastníka serveru"""
+        selection = self.tree_servers.selection()
+        if not selection:
+            messagebox.showwarning("Varování", "Vyberte server")
+            return
+
+        server_id = self.tree_servers.item(selection[0])["values"][0]
+        server_name = self.tree_servers.item(selection[0])["values"][1]
+        current_owner = self.tree_servers.item(selection[0])["values"][2]
+
+        with app.app_context():
+            server = Server.query.get(server_id)
+            if not server:
+                messagebox.showerror("Chyba", "Server nebyl nalezen")
+                return
+
+            users = User.query.all()
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Změna vlastníka - {server_name}")
+        dialog.geometry("400x200")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        ttk.Label(dialog, text=f"Aktuální vlastník: {current_owner}").pack(pady=10)
+
+        ttk.Label(dialog, text="Nový vlastník:").pack(pady=5)
+        owner_var = tk.StringVar()
+        owner_combo = ttk.Combobox(dialog, textvariable=owner_var, state="readonly")
+        owner_combo['values'] = [f"{user.id}: {user.username}" for user in users if user.id != server.owner_id]
+        owner_combo.pack(pady=5, fill=tk.X, padx=20)
+
+        def change_owner():
+            selected = owner_var.get()
+            if not selected:
+                messagebox.showwarning("Varování", "Vyberte nového vlastníka")
+                return
+
+            user_id = int(selected.split(":")[0])
+            
+            with app.app_context():
+                try:
+                    server.owner_id = user_id
+                    db.session.commit()
+                    
+                    dialog.destroy()
+                    self.load_servers()
+                    messagebox.showinfo("Hotovo", f"Vlastník serveru '{server_name}' byl změněn")
+                except Exception as e:
+                    db.session.rollback()
+                    messagebox.showerror("Chyba", f"Nepodařilo se změnit vlastníka: {e}")
+
+        ttk.Button(dialog, text="Změnit vlastníka", command=change_owner).pack(pady=10)
+
+    def show_server_stats(self):
+        """Zobrazí statistiky serverů"""
+        with app.app_context():
+            total_servers = Server.query.count()
+            service_levels = db.session.query(Server.service_level, db.func.count(Server.id)).group_by(Server.service_level).all()
+            build_types = db.session.query(BuildType.name, db.func.count(Server.id)).join(Server.build_version).join(BuildType).group_by(BuildType.name).all()
+            
+            # Počty pluginů a modů na serverech
+            servers_with_plugins = db.session.query(Server).filter(Server.plugins.any()).count()
+            servers_with_mods = db.session.query(Server).filter(Server.mods.any()).count()
+
+            msg = [
+                f"Celkem serverů: {total_servers}",
+                "\nÚrovně služeb:"
+            ]
+            
+            for level, count in service_levels:
+                msg.append(f" - Úroveň {level}: {count} serverů")
+                
+            msg.append("\nTypy buildů:")
+            for build_type, count in build_types:
+                msg.append(f" - {build_type}: {count} serverů")
+                
+            msg.append(f"\nServerů s pluginy: {servers_with_plugins}")
+            msg.append(f"Serverů s módy: {servers_with_mods}")
+
+            messagebox.showinfo("Statistiky serverů", "\n".join(msg))
 
     # === MODS FUNCTIONS ===
     def load_mods_db(self):
@@ -766,6 +1243,7 @@ class IntegratedManagerGUI:
             mods_count = Mod.query.count()
             plugins_count = Plugin.query.count()
             builds_count = BuildVersion.query.count()
+            servers_count = Server.query.count()
             
             # Počty souborů na disku
             mods_disk = 0
@@ -800,6 +1278,9 @@ PLUGINY:
 
 BUILDY:
 - Celkem v DB: {builds_count}
+
+SERVERY:
+- Celkem v DB: {servers_count}
 
 === POSLEDNÍ AKTIVITY ===
 

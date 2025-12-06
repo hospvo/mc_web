@@ -13,7 +13,7 @@ from models import db, Server, Mod, ModConfig, ModUpdateLog, server_mods, ModPac
 from mc_server import BASE_MODS_PATH, BASE_SERVERS_PATH
 
 # Blueprint
-BASE_MODPACKS_PATH = "data/modpacks"
+BASE_MODPACKS_PATH = r"C:\Users\hospv\Documents\minecraft_mods\data\modpacks"
 mods_api = Blueprint("mods_api", __name__)
 
 def is_mod_server(server: Server) -> bool:
