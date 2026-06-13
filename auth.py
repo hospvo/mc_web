@@ -9,9 +9,26 @@ auth_blueprint = Blueprint('auth', __name__)
 @auth_blueprint.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+
+        # Základní validace (můžete doplnit)
+        if not username or not email or not password:
+            flash('Všechna pole jsou povinná.', 'error')
+            return render_template('register.html', username=username, email=email)
+
+        # Kontrola, zda uživatel nebo email již existuje
+        existing_user = User.query.filter(
+            (User.username == username) | (User.email == email)
+        ).first()
+
+        if existing_user:
+            if existing_user.username == username:
+                flash('Uživatelské jméno je již obsazeno. Zvolte prosím jiné.', 'error')
+            else:
+                flash('Email je již registrován. Použijte jiný email nebo se přihlaste.', 'error')
+            return render_template('register.html', username=username, email=email)
 
         # Heslo zašifrujeme
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
@@ -21,6 +38,7 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         
+        flash('Registrace proběhla úspěšně. Nyní se můžete přihlásit.', 'success')
         return redirect(url_for('auth.login'))
 
     return render_template('register.html')

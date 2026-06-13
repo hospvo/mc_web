@@ -160,7 +160,7 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </div>
 
-                <div class="section-content" id="player-info-content" style="display: none;">
+                <div class="section-content collapsed" id="player-info-content">
                     <!-- Pro adminy: formulář pro vytvoření oznámení -->
                     <!-- Vylepšený formulář pro oznámení -->
                     <div id="notice-management-panel" style="display: none;">
@@ -260,7 +260,7 @@
                         <h4><i class="fas fa-plus-circle"></i> Vytvořit nový modpack</h4>
                         <i class="fas fa-chevron-down toggle-icon"></i>
                     </div>
-                    <div class="section-content" id="create-modpack-content" style="display: none;">
+                    <div class="section-content collapsed" id="create-modpack-content">
                         <div class="form-group">
                             <label for="modpack-name">Název modpacku:</label>
                             <input type="text" id="modpack-name" class="form-control"
@@ -291,7 +291,7 @@
                         <h4><i class="fas fa-list"></i> Existující modpacky</h4>
                         <i class="fas fa-chevron-down toggle-icon"></i>
                     </div>
-                    <div class="section-content" id="modpacks-list-content" style="display: none;">
+                    <div class="section-content collapsed" id="modpacks-list-content">
                         <div id="modpacks-list" class="modpacks-list">
                             <!-- Modpacky se načtou dynamicky -->
                         </div>
@@ -365,7 +365,8 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/server_panel.js') }}"></script>
+
+    <script type="module" src="{{ url_for('static', filename='js/server-panel/main.js') }}"></script>
 </body>
 
 </html>

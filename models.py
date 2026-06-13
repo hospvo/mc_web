@@ -301,6 +301,11 @@ class PlayerServerAccess(db.Model):
     access_code_id = db.Column(db.Integer, db.ForeignKey('player_access_codes.id'), nullable=False)
     accessed_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # Unikátní constraint – jeden uživatel může mít ke každému serveru pouze jeden záznam
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'server_id', name='unique_user_server_access'),
+    )
+    
     # Vztahy
     user = db.relationship('User', backref=db.backref('player_server_accesses', lazy=True))
     server = db.relationship('Server', backref=db.backref('player_accesses', lazy=True))

@@ -1,0 +1,19 @@
+static/js/
+├── server-panel/
+│   ├── core/
+│   │   ├── api.js          # API služba
+│   │   ├── constants.js    # Konstanty
+│   │   ├── utils.js        # Utility funkce
+│   │   └── event-bus.js    # Event systém
+│   ├── modules/
+│   │   ├── console.js      # Konzole
+│   │   ├── status.js       # Status serveru
+│   │   ├── backups.js      # Zálohy
+│   │   ├── modpacks.js     # Modpacky
+│   │   ├── notices.js      # Oznámení
+│   │   ├── player-access.js # Přístupové kódy
+│   │   └── admin.js        # Admin management
+│   ├── ui/
+│   │   ├── components.js   # UI komponenty
+│   │   └── notifications.js # Notifikace
+│   └── main.js            # Hlavní entry point

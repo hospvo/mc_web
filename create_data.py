@@ -591,80 +591,90 @@ spawn-protection=0
                     f"Nastala chyba při vytváření serveru:\n{str(e)}"
                 )
 
-    def delete_server(self):
-        """Kompletně smaže server včetně složek a záznamů z databáze"""
-        server_name = self.entry_name.get().strip()
-        if not server_name:
-            messagebox.showerror("Chyba", "Nejprve zadejte název serveru.")
-            return
+def delete_server(self):
+    """Kompletně smaže server včetně složek a záznamů z databáze"""
+    server_name = self.entry_name.get().strip()
+    if not server_name:
+        messagebox.showerror("Chyba", "Nejprve zadejte název serveru.")
+        return
 
-        with self.flask_app.app_context():
+    with self.flask_app.app_context():
+        try:
+            from port_manager import ensure_ports_closed
+
+            # Najít server v databázi
+            server = Server.query.filter_by(name=server_name).first()
+            if not server:
+                messagebox.showerror("Chyba", f"Server '{server_name}' nebyl nalezen v databázi.")
+                return
+
+            # Kontrola, zda server běží
+            server_status = get_server_status(server.id)
+            if server_status['status'] == 'running':
+                messagebox.showerror(
+                    "Chyba", 
+                    f"Server '{server_name}' je momentálně spuštěn.\n\n"
+                    f"Nejprve zastavte server před jeho smazáním."
+                )
+                return
+
+            # Potvrzení smazání
+            confirm = messagebox.askyesno(
+                "Potvrzení smazání",
+                f"Opravdu chcete KOMPLETNĚ smazat server '{server_name}'?\n\n"
+                f"Tato akce smaže:\n"
+                f"- Všechna data serveru ze složky\n"
+                f"- Všechny zálohy\n"
+                f"- Záznam z databáze\n\n"
+                f"Tato akce je NEVRATNÁ!",
+                icon='warning'
+            )
+            
+            if not confirm:
+                return
+
+            # Zavřít porty (UPnP a firewall) před smazáním
             try:
-                # Najít server v databázi
-                server = Server.query.filter_by(name=server_name).first()
-                if not server:
-                    messagebox.showerror("Chyba", f"Server '{server_name}' nebyl nalezen v databázi.")
-                    return
+                ensure_ports_closed(server.id, server.server_port, server.query_port)
+                print(f"[INFO] Porty pro server {server_name} byly uzavřeny.")
+            except Exception as e:
+                print(f"[WARN] Nepodařilo se zavřít porty: {e}")
 
-                # Kontrola, zda server běží
-                server_status = get_server_status(server.id)
-                if server_status['status'] == 'running':
+            # Smazání složek serveru
+            server_folder = os.path.join(BASE_SERVERS_PATH, server_name)
+            if os.path.exists(server_folder):
+                try:
+                    shutil.rmtree(server_folder)
+                    print(f"[INFO] Složka serveru smazána: {server_folder}")
+                except Exception as e:
                     messagebox.showerror(
                         "Chyba", 
-                        f"Server '{server_name}' je momentálně spuštěn.\n\n"
-                        f"Nejprve zastavte server před jeho smazáním."
+                        f"Nepodařilo se smazat složku serveru:\n{str(e)}\n\n"
+                        f"Složka: {server_folder}"
                     )
                     return
 
-                # Potvrzení smazání
-                confirm = messagebox.askyesno(
-                    "Potvrzení smazání",
-                    f"Opravdu chcete KOMPLETNĚ smazat server '{server_name}'?\n\n"
-                    f"Tato akce smaže:\n"
-                    f"- Všechna data serveru ze složky\n"
-                    f"- Všechny zálohy\n"
-                    f"- Záznam z databáze\n\n"
-                    f"Tato akce je NEVRATNÁ!",
-                    icon='warning'
-                )
-                
-                if not confirm:
-                    return
+            # Smazání záznamu z databáze
+            db.session.delete(server)
+            db.session.commit()
 
-                # Smazání složek serveru
-                server_folder = os.path.join(BASE_SERVERS_PATH, server_name)
-                if os.path.exists(server_folder):
-                    try:
-                        shutil.rmtree(server_folder)
-                        print(f"[INFO] Složka serveru smazána: {server_folder}")
-                    except Exception as e:
-                        messagebox.showerror(
-                            "Chyba", 
-                            f"Nepodařilo se smazat složku serveru:\n{str(e)}\n\n"
-                            f"Složka: {server_folder}"
-                        )
-                        return
-
-                # Smazání záznamu z databáze
-                db.session.delete(server)
-                db.session.commit()
-
-                messagebox.showinfo(
-                    "Hotovo", 
-                    f"Server '{server_name}' byl úspěšně kompletně smazán.\n\n"
-                    f"- Složky serveru odstraněny\n"
-                    f"- Záznam z databáze smazán"
-                )
-                
-                # Vyčištění vstupního pole
-                self.entry_name.delete(0, tk.END)
-                
-            except Exception as e:
-                db.session.rollback()
-                messagebox.showerror(
-                    "Chyba", 
-                    f"Nastala chyba při mazání serveru:\n{str(e)}"
-                )
+            messagebox.showinfo(
+                "Hotovo", 
+                f"Server '{server_name}' byl úspěšně kompletně smazán.\n\n"
+                f"- Porty uzavřeny\n"
+                f"- Složky serveru odstraněny\n"
+                f"- Záznam z databáze smazán"
+            )
+            
+            # Vyčištění vstupního pole
+            self.entry_name.delete(0, tk.END)
+            
+        except Exception as e:
+            db.session.rollback()
+            messagebox.showerror(
+                "Chyba", 
+                f"Nastala chyba při mazání serveru:\n{str(e)}"
+            )
 
     def update_versions(self, event=None):
         """Aktualizuje seznam verzí podle vybraného buildu"""
@@ -812,6 +822,11 @@ spawn-protection=0
 
                 db.session.refresh(server)  # Načteme nové hodnoty z DB
                 new_ports = (server.server_port, server.query_port)
+
+                # Zavři stará přesměrování, otevři nová
+                from port_manager import ensure_ports_closed, ensure_ports_open
+                ensure_ports_closed(server.id, old_ports[0], old_ports[1])
+                ensure_ports_open(server.id, server.server_port, server.query_port)
 
                 # Aktualizovat server.properties
                 server_path = os.path.join(BASE_SERVERS_PATH, server_name, "minecraft-server")

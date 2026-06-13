@@ -8,10 +8,11 @@ import signal
 from datetime import datetime, timedelta
 import time
 import threading
-from flask import Blueprint, request, jsonify, current_app, abort
+from flask import Blueprint, request, jsonify, current_app, abort, send_file
 from flask_login import login_required, current_user
 from models import db, User, Plugin, Server, PluginConfig, PluginUpdateLog, server_plugins, PlayerAccessCode, PlayerServerAccess, PlayerNotice,  Mod, ModPack
 from plugin_instaler_modrinth import extract_slug_from_url, get_modrinth_plugin_info, get_download_url, handle_web_request
+from port_manager import ensure_ports_open, ensure_ports_closed
 import requests
 from ansi2html import Ansi2HTMLConverter
 import yaml
@@ -692,6 +693,9 @@ def start_server(server_id):
     server = Server.query.get(server_id)
     if not server:
         return False
+    upnp_ok, fw_ok = ensure_ports_open(server_id, server.server_port, server.query_port)
+    if not (upnp_ok or fw_ok):
+        print(f"[WARN] Nepodařilo se otevřít porty pro server {server_id}")
     
     build_type = server.build_version.build_type.name.upper() if server.build_version else "VANILLA"
     instance = server_manager.get_instance(server_id)
@@ -823,7 +827,7 @@ def read_console_output(server_id, process):
         instance.cleanup()
 
 def stop_server(server_id, pid=None):
-    """Stop a specific server"""
+    """Stop a specific server and close its ports."""
     instance = server_manager.get_instance(server_id)
     
     try:
@@ -839,6 +843,8 @@ def stop_server(server_id, pid=None):
         if not target_pid:
             print(f"Nelze najít PID pro zastavení serveru {server_id}")
             instance.cleanup()
+            # I když proces není nalezen, zkusíme zavřít porty (pro jistotu)
+            _close_server_ports(server_id)
             return True  # Už je zastavený
             
         # Pokus o graceful shutdown
@@ -854,6 +860,7 @@ def stop_server(server_id, pid=None):
             if not psutil.pid_exists(target_pid):
                 instance.cleanup()
                 print(f"Server {server_id} úspěšně zastaven")
+                _close_server_ports(server_id)
                 return True
             time.sleep(1)
         
@@ -870,12 +877,26 @@ def stop_server(server_id, pid=None):
                 pass
                 
         instance.cleanup()
+        _close_server_ports(server_id)
         return True
         
     except Exception as e:
         print(f"Chyba při zastavování serveru {server_id}: {e}")
         instance.cleanup()
+        # I při chybě se pokusíme zavřít porty
+        _close_server_ports(server_id)
         return False
+
+def _close_server_ports(server_id):
+    """Pomocná funkce pro zavření portů daného serveru."""
+    try:
+        server = Server.query.get(server_id)
+        if server:
+            ensure_ports_closed(server.id, server.server_port, server.query_port)
+        else:
+            print(f"[WARN] Server {server_id} nebyl nalezen při zavírání portů.")
+    except Exception as e:
+        print(f"[ERROR] Chyba při zavírání portů serveru {server_id}: {e}")
     
 def restart_server(server_id):
     """Restart a specific server"""
@@ -1059,10 +1080,16 @@ def all_servers_status_api():
     return jsonify(statuses)
 
 # API endpoints
-@server_api.route('/api/server/status')
+@server_api.route('/api/server/status', methods=['GET'])
 @login_required
 def server_status_api():
-    server_id = request.args.get('server_id', type=int)
+    # Podpora pro query parametry i JSON tělo
+    if request.is_json:
+        data = request.get_json()
+        server_id = data.get('server_id') if data else None
+    else:
+        server_id = request.args.get('server_id', type=int)
+    
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
     
@@ -1079,10 +1106,16 @@ def server_status_api():
     return jsonify(status)
 
 
-@server_api.route('/api/server/info')
+@server_api.route('/api/server/info', methods=['GET'])
 @login_required
 def get_server_info():
-    server_id = request.args.get('server_id', type=int)
+    # Podpora pro query parametry i JSON tělo
+    if request.is_json:
+        data = request.get_json()
+        server_id = data.get('server_id') if data else None
+    else:
+        server_id = request.args.get('server_id', type=int)
+    
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
 
@@ -1098,10 +1131,16 @@ def get_server_info():
     
 
 
-@server_api.route('/api/server/backups')
+@server_api.route('/api/server/backups', methods=['GET'])
 @login_required
 def server_backups_api():
-    server_id = request.args.get('server_id', type=int)
+    # Podpora pro query parametry i JSON tělo
+    if request.is_json:
+        data = request.get_json()
+        server_id = data.get('server_id') if data else None
+    else:
+        server_id = request.args.get('server_id', type=int)
+    
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
     
@@ -1110,9 +1149,14 @@ def server_backups_api():
 @server_api.route('/api/server/start', methods=['POST'])
 @login_required
 def start_server_api():
-    server_id = request.args.get('server_id', type=int)
+    # Přijímáme JSON tělo
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing JSON body'}), 400
+    
+    server_id = data.get('server_id')
     if not server_id:
-        return jsonify({'error': 'Missing server_id'}), 400
+        return jsonify({'error': 'Missing server_id in JSON body'}), 400
     
     success = start_server(server_id)
     return jsonify({'success': success})
@@ -1120,9 +1164,14 @@ def start_server_api():
 @server_api.route('/api/server/stop', methods=['POST'])
 @login_required
 def stop_server_api():
-    server_id = request.args.get('server_id', type=int)
+    # Přijímáme JSON tělo
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing JSON body'}), 400
+    
+    server_id = data.get('server_id')
     if not server_id:
-        return jsonify({'error': 'Missing server_id'}), 400
+        return jsonify({'error': 'Missing server_id in JSON body'}), 400
     
     status = get_server_status(server_id)
     if status['status'] == 'running':
@@ -1133,9 +1182,14 @@ def stop_server_api():
 @server_api.route('/api/server/restart', methods=['POST'])
 @login_required
 def restart_server_api():
-    server_id = request.args.get('server_id', type=int)
+    # Přijímáme JSON tělo
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing JSON body'}), 400
+    
+    server_id = data.get('server_id')
     if not server_id:
-        return jsonify({'error': 'Missing server_id'}), 400
+        return jsonify({'error': 'Missing server_id in JSON body'}), 400
     
     status = get_server_status(server_id)
     if status['status'] == 'running':
@@ -1697,24 +1751,30 @@ def join_server_with_code():
     if not access_code:
         return jsonify({'success': False, 'error': 'Neplatný přístupový kód'})
     
-    # Kontrola platnosti
+    # Kontrola platnosti kódu
     if not access_code.is_active:
         return jsonify({'success': False, 'error': 'Přístupový kód již není platný'})
-    
     if access_code.expires_at and access_code.expires_at < datetime.utcnow():
         return jsonify({'success': False, 'error': 'Přístupový kód vypršel'})
-    
     if access_code.max_uses and access_code.use_count >= access_code.max_uses:
         return jsonify({'success': False, 'error': 'Přístupový kód byl již použit maximální počet krát'})
     
-    # Kontrola, zda už uživatel není připojen
+    server = access_code.server
+    
+    # Kontrola, zda uživatel už není vlastník nebo admin
+    if server.owner_id == current_user.id:
+        return jsonify({'success': False, 'error': 'Jste vlastníkem tohoto serveru – není třeba se připojovat kódem.'})
+    if current_user in server.admins:
+        return jsonify({'success': False, 'error': 'Již jste administrátorem tohoto serveru.'})
+    
+    # Kontrola, zda už není hráčem
     existing_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=access_code.server_id
     ).first()
     
     if existing_access:
-        return jsonify({'success': False, 'error': 'Již jste připojen k tomuto serveru'})
+        return jsonify({'success': False, 'error': 'Již jste připojen k tomuto serveru jako hráč.'})
     
     # Vytvoření přístupu
     player_access = PlayerServerAccess(
@@ -1722,17 +1782,14 @@ def join_server_with_code():
         server_id=access_code.server_id,
         access_code_id=access_code.id
     )
-    
-    # Inkrementace počtu použití
     access_code.use_count += 1
-    
     db.session.add(player_access)
     db.session.commit()
     
     return jsonify({
         'success': True,
-        'server_name': access_code.server.name,
-        'server_id': access_code.server_id
+        'server_name': server.name,
+        'server_id': server.id
     })
 
 @server_api.route('/api/server/player-access/check')

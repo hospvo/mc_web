@@ -11,14 +11,27 @@
   <div class="auth-container">
     <div class="auth-card">
       <h2><i class="fas fa-user-plus"></i> Registrace</h2>
+
+      {# Zobrazení flash zpráv #}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="auth-message {{ category }}">
+              <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }}"></i>
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
       <form method="POST">
         <div class="form-group">
           <label for="username"><i class="fas fa-user"></i> Uživatelské jméno</label>
-          <input type="text" id="username" name="username" required>
+          <input type="text" id="username" name="username" value="{{ username or '' }}" required>
         </div>
         <div class="form-group">
           <label for="email"><i class="fas fa-envelope"></i> Email</label>
-          <input type="email" id="email" name="email" required>
+          <input type="email" id="email" name="email" value="{{ email or '' }}" required>
         </div>
         <div class="form-group">
           <label for="password"><i class="fas fa-lock"></i> Heslo</label>

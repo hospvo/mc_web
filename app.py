@@ -59,8 +59,16 @@ def dashboard():
     # Servery, ke kterým má přístup jako hráč
     player_access = user.accessible_servers_as_player
 
-    # Sloučení všech serverů
-    all_servers = list(owned) + list(admin_only) + list(player_access)
+    # Sloučení bez duplicit podle ID serveru
+    servers_dict = {}
+    for s in owned:
+        servers_dict[s.id] = {'server': s, 'role': 'owner'}
+    for s in admin_only:
+        if s.id not in servers_dict:
+            servers_dict[s.id] = {'server': s, 'role': 'admin'}
+    for s in player_access:
+        if s.id not in servers_dict:
+            servers_dict[s.id] = {'server': s, 'role': 'player'}
 
     # Získání IP adresy
     try:
@@ -68,15 +76,9 @@ def dashboard():
     except:
         ip_address = "localhost"
 
-    # Obohatíme data o informaci o roli
     servers_data = []
-    for s in all_servers:
-        is_owner = s.owner_id == user.id
-        is_admin = user in s.admins
-        is_player = s in player_access and not is_owner and not is_admin
-        
-        role = 'owner' if is_owner else 'admin' if is_admin else 'player' if is_player else 'guest'
-        
+    for item in servers_dict.values():
+        s = item['server']
         servers_data.append({
             "id": s.id,
             "name": s.name,
@@ -84,7 +86,7 @@ def dashboard():
             "mc_version": s.build_version.mc_version if s.build_version else None,
             "ip": ip_address,
             "port": s.server_port,
-            "role": role
+            "role": item['role']
         })
 
     return render_template(
