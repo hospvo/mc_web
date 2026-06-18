@@ -1,12 +1,83 @@
 from flask import Blueprint, render_template, request, jsonify, abort, current_app
 from flask_login import login_required, current_user
 from models import db, User, Server, BuildType, BuildVersion, Plugin, Mod
-from mc_server import get_server_status, start_server, stop_server, restart_server
+from mc_server import (
+    get_server_status,
+    start_server,
+    stop_server,
+    restart_server,
+    total_cores,
+    JAVA_EXECUTABLE,
+)
 import subprocess
 import sys
 import os
+import re
+from server_creator import SERVICE_LEVELS, create_server_from_payload
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+def _build_cpu_affinity_summary(servers):
+    cores = [{'index': index, 'servers': []} for index in range(total_cores or 0)]
+
+    for server in servers:
+        status = get_server_status(server.id)
+        assigned_cores = status.get('assigned_cores') or []
+
+        if not assigned_cores and psutil and status.get('status') == 'running' and status.get('pid'):
+            try:
+                affinity = psutil.Process(status['pid']).cpu_affinity()
+                if len(affinity) < (total_cores or len(affinity)):
+                    assigned_cores = affinity
+            except Exception:
+                assigned_cores = []
+
+        for core in assigned_cores:
+            if isinstance(core, int) and 0 <= core < len(cores):
+                cores[core]['servers'].append(server.name)
+
+    used_count = sum(1 for core in cores if core['servers'])
+    return {
+        'total': len(cores),
+        'used': used_count,
+        'free': max(len(cores) - used_count, 0),
+        'cores': cores,
+    }
+
+
+def _get_java_runtime_info():
+    try:
+        result = subprocess.run(
+            [JAVA_EXECUTABLE, '-version'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        output = (result.stderr or result.stdout or '').strip()
+        first_line = output.splitlines()[0] if output else 'Java verze nebyla zjištěna'
+        match = re.search(r'version "([^"]+)"', first_line)
+        version = match.group(1) if match else first_line
+        major_text = version.split('.')[0]
+        major = int(major_text) if major_text.isdigit() else None
+        return {
+            'executable': JAVA_EXECUTABLE,
+            'version': version,
+            'major': major,
+            'warning': major is not None and major < 25
+        }
+    except Exception as e:
+        return {
+            'executable': JAVA_EXECUTABLE,
+            'version': 'Neznámá',
+            'major': None,
+            'warning': True,
+            'error': str(e)
+        }
 
 def admin_required(f):
     from functools import wraps
@@ -38,8 +109,44 @@ def index():
 @login_required
 @admin_required
 def servers():
-    servers = Server.query.all()
-    return render_template('admin/servers.html', servers=servers)
+    servers = Server.query.order_by(Server.id.asc()).all()
+    users = User.query.order_by(User.username.asc()).all()
+    build_types = BuildType.query.order_by(BuildType.name.asc()).all()
+    build_versions = BuildVersion.query.join(BuildType).order_by(
+        BuildType.name.asc(),
+        BuildVersion.mc_version.desc(),
+        BuildVersion.build_number.desc()
+    ).all()
+    cpu_summary = _build_cpu_affinity_summary(servers)
+    return render_template(
+        'admin/servers.html',
+        servers=servers,
+        users=users,
+        build_types=build_types,
+        build_versions=build_versions,
+        service_levels=SERVICE_LEVELS,
+        cpu_summary=cpu_summary,
+        java_info=_get_java_runtime_info()
+    )
+
+
+@admin_bp.route('/server/create', methods=['POST'])
+@login_required
+@admin_required
+def create_server():
+    try:
+        success, message, server = create_server_from_payload(request.get_json() or {})
+        if not success:
+            return jsonify({'success': False, 'error': message}), 400
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'server_id': server.id
+        })
+    except Exception as e:
+        current_app.logger.exception('Vytvo?en? serveru selhalo')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @admin_bp.route('/server/<int:server_id>/action', methods=['POST'])
 @login_required
@@ -105,8 +212,37 @@ def delete_user(user_id):
 @login_required
 @admin_required
 def builds():
-    build_types = BuildType.query.all()
-    return render_template('admin/builds.html', build_types=build_types)
+    build_types = BuildType.query.order_by(BuildType.name.asc()).all()
+    total_builds = BuildVersion.query.count()
+    build_cards = []
+
+    for build_type in build_types:
+        versions = sorted(
+            build_type.versions,
+            key=lambda v: (
+                v.mc_version or '',
+                v.created_at.isoformat() if v.created_at else '',
+                v.build_number or ''
+            ),
+            reverse=True
+        )
+        grouped_versions = {}
+        for version in versions:
+            grouped_versions.setdefault(version.mc_version or 'Neznámá verze', []).append(version)
+
+        build_cards.append({
+            'type': build_type,
+            'count': len(versions),
+            'mc_version_count': len(grouped_versions),
+            'groups': grouped_versions
+        })
+
+    return render_template(
+        'admin/builds.html',
+        build_types=build_types,
+        build_cards=build_cards,
+        total_builds=total_builds
+    )
 
 @admin_bp.route('/sync/<build_name>', methods=['POST'])
 @login_required

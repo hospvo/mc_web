@@ -1,4 +1,4 @@
-import os
+﻿import os
 import subprocess
 import psutil
 import shutil
@@ -17,18 +17,22 @@ import requests
 from ansi2html import Ansi2HTMLConverter
 import yaml
 from mcstatus import JavaServer
+from app_config import (
+    BASE_BUILD_PATH,
+    BASE_MODS_PATH,
+    BASE_PLUGIN_PATH,
+    BASE_SERVERS_PATH,
+    MINECRAFT_JAVA_PATH,
+)
 
 
 
 # Base directory where all server folders will be stored
-BASE_SERVERS_PATH = r"C:\Users\hospv\Documents\minecraft_server"
-BASE_PLUGIN_PATH = r"C:\Users\hospv\Documents\minecraft_plugins"
-BASE_BUILD_PATH = r"C:\Users\hospv\Documents\minecraft_builds"
-BASE_MODS_PATH = r"C:\Users\hospv\Documents\minecraft_mods"  # Společné úložiště pro všechny módy
+JAVA_EXECUTABLE = MINECRAFT_JAVA_PATH or "java"
 #BASE_SERVERS_PATH = r"D:\\"
-#seznam aktuálně využitých jader
+#seznam aktuĂˇlnÄ› vyuĹľitĂ˝ch jader
 USED_CPU = []
-total_cores = psutil.cpu_count(logical=True)  # fyzická jádra, nebo True pro logická
+total_cores = psutil.cpu_count(logical=True)  # fyzickĂˇ jĂˇdra, nebo True pro logickĂˇ
 
 
 
@@ -44,12 +48,12 @@ def get_server_paths(server_id):
     return {
         'server_path': os.path.join(server_dir, "minecraft-server"),
         'backup_path': os.path.join(server_dir, "mcbackups"),
-        'server_jar': f"server_{server_id}.jar"  # Unikátní název podle server_id
+        'server_jar': f"server_{server_id}.jar"  # UnikĂˇtnĂ­ nĂˇzev podle server_id
     }
 
 
 class ServerInstance:
-    """Třída pro správu stavu jednoho serveru"""
+    """TĹ™Ă­da pro sprĂˇvu stavu jednoho serveru"""
     def __init__(self, server_id):
         self.server_id = server_id
         self.process = None               # subprocess.Popen instance
@@ -61,7 +65,7 @@ class ServerInstance:
     def add_output_line(self, line):
         with self.lock:
             self.console_output.append(line)
-            # Udržujeme maximálně 1000 řádků výstupu
+            # UdrĹľujeme maximĂˇlnÄ› 1000 Ĺ™ĂˇdkĹŻ vĂ˝stupu
             if len(self.console_output) > 1000:
                 self.console_output.pop(0)
     
@@ -71,17 +75,17 @@ class ServerInstance:
         
     # work with cores
     def set_assigned_cores(self, cores):
-        """Nastaví přiřazená jádra pro tento server"""
+        """NastavĂ­ pĹ™iĹ™azenĂˇ jĂˇdra pro tento server"""
         with self.lock:
             self.assigned_cores = cores.copy()
 
     def get_assigned_cores(self):
-        """Vrátí přiřazená jádra pro tento server"""
+        """VrĂˇtĂ­ pĹ™iĹ™azenĂˇ jĂˇdra pro tento server"""
         with self.lock:
             return self.assigned_cores.copy()
         
     def release_cores(self):
-        """Uvolní přiřazená jádra"""
+        """UvolnĂ­ pĹ™iĹ™azenĂˇ jĂˇdra"""
         with self.lock:
             for core in self.assigned_cores:
                 if core in USED_CPU:
@@ -89,26 +93,26 @@ class ServerInstance:
             self.assigned_cores = []
             
     def cleanup(self):
-        """Vyčistí prostředky při zastavení serveru"""
+        """VyÄŤistĂ­ prostĹ™edky pĹ™i zastavenĂ­ serveru"""
         self.release_cores()
         self.psutil_proc = None
         self.process = None
         
 class ServerManager:
-    """Třída pro správu všech server instancí"""
+    """TĹ™Ă­da pro sprĂˇvu vĹˇech server instancĂ­"""
     def __init__(self):
         self.instances = {}  # {server_id: ServerInstance}
         self.instances_lock = threading.Lock()
     
     def get_instance(self, server_id):
-        """Získá instanci serveru, vytvoří novou pokud neexistuje"""
+        """ZĂ­skĂˇ instanci serveru, vytvoĹ™Ă­ novou pokud neexistuje"""
         with self.instances_lock:
             if server_id not in self.instances:
                 self.instances[server_id] = ServerInstance(server_id)
             return self.instances[server_id]
     
     def remove_instance(self, server_id):
-        """Odstraní instanci serveru"""
+        """OdstranĂ­ instanci serveru"""
         with self.instances_lock:
             if server_id in self.instances:
                 del self.instances[server_id]
@@ -121,7 +125,7 @@ class PluginManager:
         self._ensure_directories()
     
     def _ensure_directories(self):
-        """Zajistí existenci potřebných adresářů v externím úložišti"""
+        """ZajistĂ­ existenci potĹ™ebnĂ˝ch adresĂˇĹ™ĹŻ v externĂ­m ĂşloĹľiĹˇti"""
         dirs = [
             'plugins/core',
             'plugins/optional',
@@ -140,7 +144,7 @@ class PluginManager:
             slug = extract_slug_from_url(url)
             info = get_modrinth_plugin_info(slug)
 
-            # Získáme bezpečně project_id a metadata
+            # ZĂ­skĂˇme bezpeÄŤnÄ› project_id a metadata
             project_id = info.get("basic_info", {}).get("slug") or slug
             title = info["basic_info"].get("title") or slug
             version = info["latest_version"].get("version_number") if info.get("latest_version") else "unknown"
@@ -149,25 +153,25 @@ class PluginManager:
             categories = "; ".join(info["basic_info"].get("categories", ["unknown"]))
             compatible_with = "; ".join(info["latest_version"].get("game_versions", [])) if info.get("latest_version") else ""
 
-            # Kontrola existence pluginu podle unikátního identifikátoru (slug nebo project_id)
+            # Kontrola existence pluginu podle unikĂˇtnĂ­ho identifikĂˇtoru (slug nebo project_id)
             existing_plugin = Plugin.query.filter_by(name=project_id).first()
             if existing_plugin:
                 return False, {
                     "type": "plugin_exists",
-                    "message": f"Plugin '{title}' již existuje v databázi.",
+                    "message": f"Plugin '{title}' jiĹľ existuje v databĂˇzi.",
                     "plugin_id": existing_plugin.id,
                     "plugin_name": existing_plugin.display_name or existing_plugin.name
                 }
 
-            # Stažení souboru s validací
+            # StaĹľenĂ­ souboru s validacĂ­
             if not download_url or not download_url.endswith(".jar"):
-                return False, "Neplatná URL – očekáván .jar soubor"
+                return False, "NeplatnĂˇ URL â€“ oÄŤekĂˇvĂˇn .jar soubor"
 
             try:
                 r = requests.get(download_url, timeout=15, stream=True)
                 r.raise_for_status()
             except Exception as e:
-                return False, f"Chyba při stahování pluginu: {str(e)}"
+                return False, f"Chyba pĹ™i stahovĂˇnĂ­ pluginu: {str(e)}"
 
             filename = f"{slug}-{version}.jar"
             dest_path = os.path.join(BASE_PLUGIN_PATH, "plugins", "core", filename)
@@ -178,7 +182,7 @@ class PluginManager:
                     if chunk:
                         f.write(chunk)
 
-            # Přidání pluginu do DB – commit až po úspěchu instalace na server
+            # PĹ™idĂˇnĂ­ pluginu do DB â€“ commit aĹľ po ĂşspÄ›chu instalace na server
             plugin = Plugin(
                 name=project_id,
                 display_name=title,
@@ -194,7 +198,7 @@ class PluginManager:
                 updated_at=datetime.utcnow()
             )
             db.session.add(plugin)
-            db.session.flush()  # ještě necommitujeme
+            db.session.flush()  # jeĹˇtÄ› necommitujeme
 
             # Pokus o instalaci na server
             success, message = self.install_plugin_to_server(
@@ -206,11 +210,11 @@ class PluginManager:
             if not success:
                 db.session.rollback()
                 if os.path.exists(dest_path):
-                    os.remove(dest_path)  # uklidíme stažený soubor
+                    os.remove(dest_path)  # uklidĂ­me staĹľenĂ˝ soubor
                 return False, message
 
             db.session.commit()
-            return True, f"Plugin '{title}' byl nainstalován"
+            return True, f"Plugin '{title}' byl nainstalovĂˇn"
 
         except Exception as e:
             db.session.rollback()
@@ -218,33 +222,33 @@ class PluginManager:
 
     
     def install_plugin_to_server(self, plugin_id, server_id, user_id):
-        """Nainstaluje plugin na konkrétní server"""
+        """Nainstaluje plugin na konkrĂ©tnĂ­ server"""
         plugin = Plugin.query.get(plugin_id)
         server = Server.query.get(server_id)
 
         if not plugin or not server:
             return False, "Plugin or server not found"
 
-        # Kontrola, zda již není nainstalován
+        # Kontrola, zda jiĹľ nenĂ­ nainstalovĂˇn
         if server.plugins.filter_by(id=plugin_id).first():
             return False, "Plugin already installed on this server"
         
         try:
-            # 1. Získat cesty pro server pomocí get_server_paths
+            # 1. ZĂ­skat cesty pro server pomocĂ­ get_server_paths
             server_paths = get_server_paths(server_id)
             if not server_paths:
                 return False, "Could not determine server paths"
 
-            # 1. Zkopírovat plugin do složky serveru
+            # 1. ZkopĂ­rovat plugin do sloĹľky serveru
             server_plugins_dir = os.path.join(server_paths['server_path'], "plugins")
-            print(f"[DEBUG] Cílová složka pluginu: {server_plugins_dir}")
+            print(f"[DEBUG] CĂ­lovĂˇ sloĹľka pluginu: {server_plugins_dir}")
 
             os.makedirs(server_plugins_dir, exist_ok=True)
 
             plugin_filename = os.path.basename(plugin.file_path)
             dest_path = os.path.join(server_plugins_dir, plugin_filename)
 
-            print(f"[DEBUG] Kopírování souboru:")
+            print(f"[DEBUG] KopĂ­rovĂˇnĂ­ souboru:")
             print(f"  Ze: {plugin.file_path}")
             print(f"  Do: {dest_path}")
             print(f"  Soubor existuje? {os.path.exists(plugin.file_path)}")
@@ -253,9 +257,9 @@ class PluginManager:
                 return False, f"Plugin file not found at {plugin.file_path}"
 
             shutil.copy2(plugin.file_path, dest_path)
-            print("[DEBUG] Soubor úspěšně zkopírován.")
+            print("[DEBUG] Soubor ĂşspÄ›ĹˇnÄ› zkopĂ­rovĂˇn.")
 
-            # 2. Přidat vztah mezi serverem a pluginem
+            # 2. PĹ™idat vztah mezi serverem a pluginem
             db.session.execute(
                 server_plugins.insert().values(
                     server_id=server_id,
@@ -265,16 +269,16 @@ class PluginManager:
                 )
             )
 
-            # 3. Zkopírovat výchozí konfiguraci (pokud existuje)
+            # 3. ZkopĂ­rovat vĂ˝chozĂ­ konfiguraci (pokud existuje)
             config_folder_name = os.path.splitext(plugin.name)[0]
             default_config_dir = os.path.join(self.external_storage, "configs", config_folder_name)
-            print(f"[DEBUG] Výchozí konfigurace: {default_config_dir} (existuje: {os.path.exists(default_config_dir)})")
+            print(f"[DEBUG] VĂ˝chozĂ­ konfigurace: {default_config_dir} (existuje: {os.path.exists(default_config_dir)})")
             print(f"  self.external_storage: {self.external_storage}")
 
             if os.path.exists(default_config_dir):
                 server_config_dir = os.path.join(server_plugins_dir, plugin.name)
                 shutil.copytree(default_config_dir, server_config_dir, dirs_exist_ok=True)
-                print("[DEBUG] Výchozí konfigurace úspěšně zkopírována.")
+                print("[DEBUG] VĂ˝chozĂ­ konfigurace ĂşspÄ›ĹˇnÄ› zkopĂ­rovĂˇna.")
 
                 server_config = PluginConfig(
                     plugin_id=plugin_id,
@@ -299,18 +303,18 @@ class PluginManager:
 
         except Exception as e:
             db.session.rollback()
-            print(f"[CHYBA] Výjimka při instalaci pluginu: {e}")
+            print(f"[CHYBA] VĂ˝jimka pĹ™i instalaci pluginu: {e}")
             return False, str(e)
 
     
     def update_plugin(self, plugin_id, new_file_path, user_id):
-        """Aktualizuje plugin ve všech serverech"""
+        """Aktualizuje plugin ve vĹˇech serverech"""
         plugin = Plugin.query.get(plugin_id)
         if not plugin:
             return False, "Plugin not found"
         
         try:
-            # 1. Vytvořit zálohu
+            # 1. VytvoĹ™it zĂˇlohu
             backup_dir = os.path.join(self.external_storage, "backups")
             os.makedirs(backup_dir, exist_ok=True)
             backup_path = os.path.join(backup_dir, f"{plugin.name}_{datetime.now().strftime('%Y%m%d')}.jar")
@@ -322,10 +326,10 @@ class PluginManager:
             shutil.copy2(new_file_path, plugin.file_path)
             
             # 3. Aktualizovat metadata pluginu
-            # (zde byste mohli parsovat novou verzi z názvu souboru)
+            # (zde byste mohli parsovat novou verzi z nĂˇzvu souboru)
             plugin.updated_at = datetime.utcnow()
             
-            # 4. Aktualizovat plugin na všech serverech
+            # 4. Aktualizovat plugin na vĹˇech serverech
             for server in plugin.servers:
                 server_plugins_dir = os.path.join(BASE_PLUGIN_PATH, server.name, "plugins")
                 plugin_filename = os.path.basename(plugin.file_path)
@@ -359,28 +363,28 @@ class PluginManager:
         if not plugin or not server:
             return False, "Plugin or server not found"
 
-        # Kontrola, zda je plugin nainstalován
+        # Kontrola, zda je plugin nainstalovĂˇn
         if not server.plugins.filter_by(id=plugin_id).first():
             return False, "Plugin is not installed on this server"
 
         try:
-            # 1. Získat cesty pro server
+            # 1. ZĂ­skat cesty pro server
             server_paths = get_server_paths(server_id)
             if not server_paths:
                 return False, "Could not determine server paths"
 
-            # 2. Smazat plugin ze složky serveru
+            # 2. Smazat plugin ze sloĹľky serveru
             server_plugins_dir = os.path.join(server_paths['server_path'], "plugins")
             plugin_filename = os.path.basename(plugin.file_path)
             plugin_path = os.path.join(server_plugins_dir, plugin_filename)
 
-            print(f"[DEBUG] Odstraňování pluginu: {plugin_path}")
+            print(f"[DEBUG] OdstraĹovĂˇnĂ­ pluginu: {plugin_path}")
             
             if os.path.exists(plugin_path):
                 os.remove(plugin_path)
-                print("[DEBUG] Soubor pluginu úspěšně odstraněn")
+                print("[DEBUG] Soubor pluginu ĂşspÄ›ĹˇnÄ› odstranÄ›n")
             else:
-                print("[DEBUG] Soubor pluginu nebyl nalezen, pokračování v odinstalaci")
+                print("[DEBUG] Soubor pluginu nebyl nalezen, pokraÄŤovĂˇnĂ­ v odinstalaci")
 
             # 3. Smazat konfiguraci pluginu (pokud existuje)
             config_folder_name = os.path.splitext(plugin.name)[0]
@@ -388,7 +392,7 @@ class PluginManager:
             
             if os.path.exists(server_config_dir):
                 shutil.rmtree(server_config_dir)
-                print("[DEBUG] Konfigurace pluginu úspěšně odstraněna")
+                print("[DEBUG] Konfigurace pluginu ĂşspÄ›ĹˇnÄ› odstranÄ›na")
 
             # 4. Odstranit vztah mezi serverem a pluginem
             db.session.execute(
@@ -398,7 +402,7 @@ class PluginManager:
                 )
             )
 
-            # 5. Smazat záznam o konfiguraci (pokud existuje)
+            # 5. Smazat zĂˇznam o konfiguraci (pokud existuje)
             config = PluginConfig.query.filter_by(
                 plugin_id=plugin_id,
                 server_id=server_id
@@ -422,11 +426,11 @@ class PluginManager:
 
         except Exception as e:
             db.session.rollback()
-            print(f"[CHYBA] Výjimka při odinstalaci pluginu: {e}")
+            print(f"[CHYBA] VĂ˝jimka pĹ™i odinstalaci pluginu: {e}")
             return False, str(e)
         
     def check_for_updates(self, plugin_id):
-        """Zkontroluje, zda má plugin dostupnou novější verzi (aktuálně jen Modrinth)."""
+        """Zkontroluje, zda mĂˇ plugin dostupnou novÄ›jĹˇĂ­ verzi (aktuĂˇlnÄ› jen Modrinth)."""
         plugin = Plugin.query.get(plugin_id)
         if not plugin:
             return {"update_available": False, "error": "Plugin not found"}
@@ -437,7 +441,7 @@ class PluginManager:
         try:
             from plugin_instaler_modrinth import get_modrinth_plugin_info
 
-            # používáme slug/project_id uložený v plugin.name
+            # pouĹľĂ­vĂˇme slug/project_id uloĹľenĂ˝ v plugin.name
             slug = plugin.name
             info = get_modrinth_plugin_info(slug)
 
@@ -457,12 +461,12 @@ class PluginManager:
             return {"update_available": False, "error": str(e)}
 
 
-# Globální manager pro všechny servery
+# GlobĂˇlnĂ­ manager pro vĹˇechny servery
 server_manager = ServerManager()
 plugin_manager = PluginManager()
 
 def get_server_status(server_id):
-    """Získá stav a statistiky Minecraft serveru"""
+    """ZĂ­skĂˇ stav a statistiky Minecraft serveru"""
     paths = get_server_paths(server_id)
     if not paths:
         return {'status': 'error', 'message': 'Server not found'}
@@ -482,7 +486,7 @@ def get_server_status(server_id):
         3: '300 %'
     }.get(server.service_level, '100 %')
 
-    # Funkce pro rozpoznání Forge procesu
+    # Funkce pro rozpoznĂˇnĂ­ Forge procesu
     def is_forge_process(proc, jar_name):
         try:
             cmdline = ' '.join(proc.cmdline()) if proc.cmdline() else ''
@@ -495,7 +499,7 @@ def get_server_status(server_id):
         except Exception:
             return False
 
-    # --- 1) Zkontrolovat náš manager ---
+    # --- 1) Zkontrolovat nĂˇĹˇ manager ---
     instance = server_manager.get_instance(server_id)
     
     # Kontrola procesu v manageru
@@ -518,13 +522,13 @@ def get_server_status(server_id):
                     'assigned_cores': instance.get_assigned_cores()
                 }
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            # proces už neběží
-            print(f"Proces serveru {server_id} již neběží, provádím cleanup")
+            # proces uĹľ nebÄ›ĹľĂ­
+            print(f"Proces serveru {server_id} jiĹľ nebÄ›ĹľĂ­, provĂˇdĂ­m cleanup")
             instance.cleanup()
 
     # Kontrola Popen procesu
     if instance.process and instance.process.poll() is None:
-        # Popen proces běží, ale psutil proces je None - najdeme ho
+        # Popen proces bÄ›ĹľĂ­, ale psutil proces je None - najdeme ho
         try:
             parent = psutil.Process(instance.process.pid)
             for child in parent.children(recursive=True):
@@ -549,9 +553,9 @@ def get_server_status(server_id):
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
         except Exception as e:
-            print(f"Chyba při hledání procesu: {e}")
+            print(f"Chyba pĹ™i hledĂˇnĂ­ procesu: {e}")
 
-    # --- 2) Fallback: hledat v systému podle jar_name ---
+    # --- 2) Fallback: hledat v systĂ©mu podle jar_name ---
     for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'create_time']):
         try:
             cmdline = proc.info.get('cmdline') or []
@@ -562,7 +566,7 @@ def get_server_status(server_id):
                 mem = proc.memory_info()
                 cpu = proc.cpu_percent(interval=0.1)
 
-                # Aktualizovat instanci s nalezeným procesem
+                # Aktualizovat instanci s nalezenĂ˝m procesem
                 instance.psutil_proc = proc
                 
                 return {
@@ -579,7 +583,7 @@ def get_server_status(server_id):
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-    # --- 3) Pokud nic neběží ---
+    # --- 3) Pokud nic nebÄ›ĹľĂ­ ---
     instance.cleanup()
 
     return {
@@ -592,13 +596,13 @@ def get_server_status(server_id):
 
 def get_online_player_info(server_id):
     """
-    Vrátí informace o hráčích online (počet + seznam jmen).
-    Upřednostňuje query, pak ping, pak diagnostiku.
+    VrĂˇtĂ­ informace o hrĂˇÄŤĂ­ch online (poÄŤet + seznam jmen).
+    UpĹ™ednostĹuje query, pak ping, pak diagnostiku.
     """
     try:
         server = Server.query.get(server_id)
         if not server:
-            print(f"[WARN] Server {server_id} nebyl nalezen v databázi.")
+            print(f"[WARN] Server {server_id} nebyl nalezen v databĂˇzi.")
             return {"count": 0, "names": []}
 
         server_ip = "localhost"
@@ -625,11 +629,11 @@ def get_online_player_info(server_id):
             except Exception as e:
                 print(f"[WARN] Ping selhal na portu {server.server_port}: {e}")
 
-        # 3. Diagnostický endpoint (HTTP)
+        # 3. DiagnostickĂ˝ endpoint (HTTP)
         if server.diagnostic_server_port:
             try:
                 url = f"http://localhost:{server.diagnostic_server_port}/players"
-                print(f"[INFO] Pokus o dotaz na diagnostický endpoint: {url}")
+                print(f"[INFO] Pokus o dotaz na diagnostickĂ˝ endpoint: {url}")
                 response = requests.get(url, timeout=3)
                 if response.status_code == 200:
                     data = response.json()
@@ -638,12 +642,12 @@ def get_online_player_info(server_id):
                         "names": data.get("player_names", [])
                     }
             except requests.exceptions.RequestException as e:
-                print(f"[WARN] Chyba při dotazu na diagnostický port: {e}")
+                print(f"[WARN] Chyba pĹ™i dotazu na diagnostickĂ˝ port: {e}")
 
         return {"count": 0, "names": []}
 
     except Exception as e:
-        print(f"[ERROR] Neočekávaná chyba při získávání hráčů pro server {server_id}: {e}")
+        print(f"[ERROR] NeoÄŤekĂˇvanĂˇ chyba pĹ™i zĂ­skĂˇvĂˇnĂ­ hrĂˇÄŤĹŻ pro server {server_id}: {e}")
         return {"count": 0, "names": []}
 
 #these two from old methods
@@ -695,30 +699,30 @@ def start_server(server_id):
         return False
     upnp_ok, fw_ok = ensure_ports_open(server_id, server.server_port, server.query_port)
     if not (upnp_ok or fw_ok):
-        print(f"[WARN] Nepodařilo se otevřít porty pro server {server_id}")
+        print(f"[WARN] NepodaĹ™ilo se otevĹ™Ă­t porty pro server {server_id}")
     
     build_type = server.build_version.build_type.name.upper() if server.build_version else "VANILLA"
     instance = server_manager.get_instance(server_id)
 
-    # Kontrola, zda již server běží
+    # Kontrola, zda jiĹľ server bÄ›ĹľĂ­
     if instance.process and instance.process.poll() is None:
-        print(f"Server {server_id} již běží")
+        print(f"Server {server_id} jiĹľ bÄ›ĹľĂ­")
         return False
     
     try:
-        # Forge potřebuje jiné parametry
+        # Forge potĹ™ebuje jinĂ© parametry
         if build_type == "FORGE":
             java_args = [
-                "java", "-Xmx6G", "-Xms3G",
+                JAVA_EXECUTABLE, "-Xmx6G", "-Xms3G",
                 "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled",
                 "-XX:MaxGCPauseMillis=200", "-XX:+UnlockExperimentalVMOptions",
                 "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch",
                 "-jar", paths['server_jar'], "nogui"
             ]
         else:
-            java_args = ["java", "-Xmx4G", "-Xms2G", "-jar", paths['server_jar'], "nogui"]
+            java_args = [JAVA_EXECUTABLE, "-Xmx4G", "-Xms2G", "-jar", paths['server_jar'], "nogui"]
 
-        # Spuštění serveru
+        # SpuĹˇtÄ›nĂ­ serveru
         process = subprocess.Popen(
             java_args,
             cwd=paths['server_path'],
@@ -731,9 +735,23 @@ def start_server(server_id):
             encoding='utf-8'
         )
 
-        time.sleep(2)  # Dej JVM chvilku času
+        time.sleep(2)  # Dej JVM chvilku ÄŤasu
 
-        # Najít skutečný JVM proces
+        if process.poll() is not None:
+            try:
+                early_output = process.stdout.read() if process.stdout else ""
+                for line in early_output.splitlines():
+                    instance.add_output_line(line.strip())
+                    print(line)
+            except Exception as output_error:
+                print(f"Chyba pĹ™i ÄŤtenĂ­ vĂ˝stupu po pĂˇdu serveru {server_id}: {output_error}")
+
+            instance.cleanup()
+            _close_server_ports(server_id)
+            print(f"Server {server_id} se nespustil, JVM skonÄŤila s kĂłdem {process.returncode}")
+            return False
+
+        # NajĂ­t skuteÄŤnĂ˝ JVM proces
         psutil_proc = None
         try:
             parent = psutil.Process(process.pid)
@@ -746,14 +764,14 @@ def start_server(server_id):
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
             
-            # Fallback na rodičovský proces
+            # Fallback na rodiÄŤovskĂ˝ proces
             if psutil_proc is None:
                 psutil_proc = parent
         except Exception as e:
-            print(f"Chyba při hledání procesu: {e}")
+            print(f"Chyba pĹ™i hledĂˇnĂ­ procesu: {e}")
             psutil_proc = psutil.Process(process.pid)
 
-        # Nastavení afinity (CPU core assignment)
+        # NastavenĂ­ afinity (CPU core assignment)
         if server.service_level == 1:
             cores_to_assign = 2
         elif server.service_level == 2:
@@ -769,35 +787,35 @@ def start_server(server_id):
                 break
 
         if len(free_cores) < cores_to_assign:
-            print("Nedostatek volných jader!")
+            print("Nedostatek volnĂ˝ch jader!")
             process.terminate()
             return False
     
-        # Přiřazení jader
+        # PĹ™iĹ™azenĂ­ jader
         USED_CPU.extend(free_cores)
         try:
             psutil_proc.cpu_affinity(free_cores)
         except Exception as e:
-            print(f"Chyba při nastavování affinity: {e}")
+            print(f"Chyba pĹ™i nastavovĂˇnĂ­ affinity: {e}")
 
-        # Uložení referencí
+        # UloĹľenĂ­ referencĂ­
         instance.process = process
         instance.psutil_proc = psutil_proc
         instance.set_assigned_cores(free_cores)
 
-        # Start čtení konzole
+        # Start ÄŤtenĂ­ konzole
         threading.Thread(
             target=read_console_output, 
             args=(server_id, process),
             daemon=True
         ).start()
 
-        print(f"Server {server_id} úspěšně spuštěn, přiřazena jádra: {free_cores}")
+        print(f"Server {server_id} ĂşspÄ›ĹˇnÄ› spuĹˇtÄ›n, pĹ™iĹ™azena jĂˇdra: {free_cores}")
         return True
         
     except Exception as e:
-        print(f"Chyba při startu serveru {server_id}: {e}")
-        # Uvolnění jader při chybě
+        print(f"Chyba pĹ™i startu serveru {server_id}: {e}")
+        # UvolnÄ›nĂ­ jader pĹ™i chybÄ›
         instance.cleanup()
         return False
 
@@ -814,7 +832,7 @@ def read_console_output(server_id, process):
                 if "Done" in line:  # Server started successfully
                     print(f"Server {server_id} started successfully: {line.strip()}")
     except Exception as e:
-        print(f"Chyba při čtení konzole serveru {server_id}: {e}")
+        print(f"Chyba pĹ™i ÄŤtenĂ­ konzole serveru {server_id}: {e}")
     finally:
         # Clean up when process ends
         try:
@@ -823,7 +841,7 @@ def read_console_output(server_id, process):
             pass
             
         return_code = process.wait()
-        print(f"Proces serveru {server_id} skončil s kódem: {return_code}")
+        print(f"Proces serveru {server_id} skonÄŤil s kĂłdem: {return_code}")
         instance.cleanup()
 
 def stop_server(server_id, pid=None):
@@ -831,7 +849,7 @@ def stop_server(server_id, pid=None):
     instance = server_manager.get_instance(server_id)
     
     try:
-        # Prioritně použijeme proces z instance
+        # PrioritnÄ› pouĹľijeme proces z instance
         target_pid = None
         if instance.psutil_proc:
             target_pid = instance.psutil_proc.pid
@@ -841,11 +859,11 @@ def stop_server(server_id, pid=None):
             target_pid = pid
             
         if not target_pid:
-            print(f"Nelze najít PID pro zastavení serveru {server_id}")
+            print(f"Nelze najĂ­t PID pro zastavenĂ­ serveru {server_id}")
             instance.cleanup()
-            # I když proces není nalezen, zkusíme zavřít porty (pro jistotu)
+            # I kdyĹľ proces nenĂ­ nalezen, zkusĂ­me zavĹ™Ă­t porty (pro jistotu)
             _close_server_ports(server_id)
-            return True  # Už je zastavený
+            return True  # UĹľ je zastavenĂ˝
             
         # Pokus o graceful shutdown
         if instance.process and instance.process.poll() is None:
@@ -853,19 +871,19 @@ def stop_server(server_id, pid=None):
                 instance.process.stdin.write('stop\n')
                 instance.process.stdin.flush()
             except Exception as e:
-                print(f"Chyba při posílání stop příkazu: {e}")
+                print(f"Chyba pĹ™i posĂ­lĂˇnĂ­ stop pĹ™Ă­kazu: {e}")
         
         # Wait max 30 seconds for shutdown
         for _ in range(30):
             if not psutil.pid_exists(target_pid):
                 instance.cleanup()
-                print(f"Server {server_id} úspěšně zastaven")
+                print(f"Server {server_id} ĂşspÄ›ĹˇnÄ› zastaven")
                 _close_server_ports(server_id)
                 return True
             time.sleep(1)
         
         # Forceful termination if still running
-        print(f"Vynucené ukončení serveru {server_id}")
+        print(f"VynucenĂ© ukonÄŤenĂ­ serveru {server_id}")
         try:
             proc = psutil.Process(target_pid)
             proc.terminate()
@@ -881,22 +899,22 @@ def stop_server(server_id, pid=None):
         return True
         
     except Exception as e:
-        print(f"Chyba při zastavování serveru {server_id}: {e}")
+        print(f"Chyba pĹ™i zastavovĂˇnĂ­ serveru {server_id}: {e}")
         instance.cleanup()
-        # I při chybě se pokusíme zavřít porty
+        # I pĹ™i chybÄ› se pokusĂ­me zavĹ™Ă­t porty
         _close_server_ports(server_id)
         return False
 
 def _close_server_ports(server_id):
-    """Pomocná funkce pro zavření portů daného serveru."""
+    """PomocnĂˇ funkce pro zavĹ™enĂ­ portĹŻ danĂ©ho serveru."""
     try:
         server = Server.query.get(server_id)
         if server:
             ensure_ports_closed(server.id, server.server_port, server.query_port)
         else:
-            print(f"[WARN] Server {server_id} nebyl nalezen při zavírání portů.")
+            print(f"[WARN] Server {server_id} nebyl nalezen pĹ™i zavĂ­rĂˇnĂ­ portĹŻ.")
     except Exception as e:
-        print(f"[ERROR] Chyba při zavírání portů serveru {server_id}: {e}")
+        print(f"[ERROR] Chyba pĹ™i zavĂ­rĂˇnĂ­ portĹŻ serveru {server_id}: {e}")
     
 def restart_server(server_id):
     """Restart a specific server"""
@@ -1064,10 +1082,10 @@ server_api = Blueprint('server_api', __name__)
 @server_api.route('/api/servers/status')
 @login_required
 def all_servers_status_api():
-    """Vrátí stavy všech serverů uživatele v jednom requestu"""
+    """VrĂˇtĂ­ stavy vĹˇech serverĹŻ uĹľivatele v jednom requestu"""
     user = current_user
     
-    # Získat všechny servery uživatele
+    # ZĂ­skat vĹˇechny servery uĹľivatele
     owned = user.owned_servers
     admin_only = user.admin_of_servers.filter(Server.owner_id != user.id).all()
     all_servers = list(owned) + admin_only
@@ -1083,7 +1101,7 @@ def all_servers_status_api():
 @server_api.route('/api/server/status', methods=['GET'])
 @login_required
 def server_status_api():
-    # Podpora pro query parametry i JSON tělo
+    # Podpora pro query parametry i JSON tÄ›lo
     if request.is_json:
         data = request.get_json()
         server_id = data.get('server_id') if data else None
@@ -1109,7 +1127,7 @@ def server_status_api():
 @server_api.route('/api/server/info', methods=['GET'])
 @login_required
 def get_server_info():
-    # Podpora pro query parametry i JSON tělo
+    # Podpora pro query parametry i JSON tÄ›lo
     if request.is_json:
         data = request.get_json()
         server_id = data.get('server_id') if data else None
@@ -1124,9 +1142,9 @@ def get_server_info():
         return jsonify({'error': 'Server not found'}), 404
 
     return jsonify({
-        "server_loader": server.build_version.build_type.name,  # např. "Paper"
-        "mc_version": server.build_version.mc_version,          # např. "1.20.1"
-        "server_port": server.server_port                       # např. 25565
+        "server_loader": server.build_version.build_type.name,  # napĹ™. "Paper"
+        "mc_version": server.build_version.mc_version,          # napĹ™. "1.20.1"
+        "server_port": server.server_port                       # napĹ™. 25565
     })
     
 
@@ -1134,7 +1152,7 @@ def get_server_info():
 @server_api.route('/api/server/backups', methods=['GET'])
 @login_required
 def server_backups_api():
-    # Podpora pro query parametry i JSON tělo
+    # Podpora pro query parametry i JSON tÄ›lo
     if request.is_json:
         data = request.get_json()
         server_id = data.get('server_id') if data else None
@@ -1149,7 +1167,7 @@ def server_backups_api():
 @server_api.route('/api/server/start', methods=['POST'])
 @login_required
 def start_server_api():
-    # Přijímáme JSON tělo
+    # PĹ™ijĂ­mĂˇme JSON tÄ›lo
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Missing JSON body'}), 400
@@ -1164,7 +1182,7 @@ def start_server_api():
 @server_api.route('/api/server/stop', methods=['POST'])
 @login_required
 def stop_server_api():
-    # Přijímáme JSON tělo
+    # PĹ™ijĂ­mĂˇme JSON tÄ›lo
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Missing JSON body'}), 400
@@ -1182,7 +1200,7 @@ def stop_server_api():
 @server_api.route('/api/server/restart', methods=['POST'])
 @login_required
 def restart_server_api():
-    # Přijímáme JSON tělo
+    # PĹ™ijĂ­mĂˇme JSON tÄ›lo
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Missing JSON body'}), 400
@@ -1209,9 +1227,9 @@ def server_logs_api():
         return jsonify({'error': 'Missing server_id'}), 400
 
     lines = request.args.get('lines', default=50, type=int)
-    ansi_lines = read_latest_logs(server_id, lines)  # předpokládám, že to vrací list řádků s ANSI kódy
+    ansi_lines = read_latest_logs(server_id, lines)  # pĹ™edpoklĂˇdĂˇm, Ĺľe to vracĂ­ list Ĺ™ĂˇdkĹŻ s ANSI kĂłdy
 
-    # Spojíme řádky do jednoho textu
+    # SpojĂ­me Ĺ™Ăˇdky do jednoho textu
     ansi_text = "\n".join(ansi_lines)
 
     conv = Ansi2HTMLConverter(inline=True)
@@ -1251,7 +1269,7 @@ def view_old_log():
     if not os.path.exists(log_path):
         abort(404)
 
-    # Pokud je soubor komprimovaný
+    # Pokud je soubor komprimovanĂ˝
     if filename.endswith('.gz'):
         import gzip
         with gzip.open(log_path, 'rt', encoding='utf-8', errors='ignore') as f:
@@ -1369,14 +1387,14 @@ def add_server_admin():
     server = Server.query.get_or_404(server_id)
 
     if server.owner_id != current_user.id:
-        return jsonify({'success': False, 'message': 'Nemáš oprávnění přidat admina.'}), 403
+        return jsonify({'success': False, 'message': 'NemĂˇĹˇ oprĂˇvnÄ›nĂ­ pĹ™idat admina.'}), 403
 
     user = User.query.filter_by(email=email).first()
     if not user:
-        return jsonify({'success': False, 'message': 'Uživatel s tímto emailem neexistuje.'}), 404
+        return jsonify({'success': False, 'message': 'UĹľivatel s tĂ­mto emailem neexistuje.'}), 404
 
     if user in server.admins:
-        return jsonify({'success': False, 'message': 'Uživatel už je adminem.'}), 400
+        return jsonify({'success': False, 'message': 'UĹľivatel uĹľ je adminem.'}), 400
 
     server.admins.append(user)
     db.session.commit()
@@ -1394,11 +1412,11 @@ def remove_server_admin():
     server = Server.query.get_or_404(server_id)
 
     if server.owner_id != current_user.id:
-        return jsonify({'success': False, 'message': 'Nemáš oprávnění odstranit admina.'}), 403
+        return jsonify({'success': False, 'message': 'NemĂˇĹˇ oprĂˇvnÄ›nĂ­ odstranit admina.'}), 403
 
     user = User.query.get(user_id)
     if not user or user not in server.admins:
-        return jsonify({'success': False, 'message': 'Uživatel není adminem.'}), 400
+        return jsonify({'success': False, 'message': 'UĹľivatel nenĂ­ adminem.'}), 400
 
     server.admins.remove(user)
     db.session.commit()
@@ -1415,7 +1433,7 @@ def get_server_build_type():
     
     server = Server.query.get_or_404(server_id)
     
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
     
@@ -1444,7 +1462,7 @@ def get_installed_plugins():
     
     server = Server.query.get_or_404(server_id)
     
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
     
@@ -1456,8 +1474,8 @@ def get_installed_plugins():
             'display_name': plugin.display_name or plugin.name,
             'version': plugin.version,
             'author': plugin.author,
-            'is_active': True,  # Můžete doplnit z M:N tabulky
-            'installed_at': None,  # Můžete doplnit z M:N tabulky
+            'is_active': True,  # MĹŻĹľete doplnit z M:N tabulky
+            'installed_at': None,  # MĹŻĹľete doplnit z M:N tabulky
             'description': plugin.description
         }
         plugins.append(plugin_data)
@@ -1467,7 +1485,7 @@ def get_installed_plugins():
 @server_api.route('/api/plugins/available')
 @login_required
 def get_available_plugins():
-    # Filtrování podle parametrů
+    # FiltrovĂˇnĂ­ podle parametrĹŻ
     search = request.args.get('search', '').lower()
     category = request.args.get('category', 'all')
     
@@ -1510,16 +1528,16 @@ def install_plugin():
     server = Server.query.get_or_404(server_id)
     plugin = Plugin.query.get_or_404(plugin_id)
     
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
     
-    # Kontrola, zda již není nainstalován
+    # Kontrola, zda jiĹľ nenĂ­ nainstalovĂˇn
     if plugin in server.plugins:
         return jsonify({'error': 'Plugin already installed'}), 400
     
     try:
-        # Zde byste volali váš PluginManager
+        # Zde byste volali vĂˇĹˇ PluginManager
         success, message = plugin_manager.install_plugin_to_server(
             plugin_id=plugin.id,
             server_id=server.id,
@@ -1548,16 +1566,16 @@ def uninstall_plugin():
     server = Server.query.get_or_404(server_id)
     plugin = Plugin.query.get_or_404(plugin_id)
     
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
     
-    # Kontrola, zda je nainstalován
+    # Kontrola, zda je nainstalovĂˇn
     if plugin not in server.plugins:
         return jsonify({'error': 'Plugin not installed on this server'}), 400
     
     try:
-        # Zde byste volali váš PluginManager pro odinstalaci
+        # Zde byste volali vĂˇĹˇ PluginManager pro odinstalaci
         success, message = plugin_manager.uninstall_plugin(
             plugin_id=plugin.id,
             server_id=server.id,
@@ -1581,7 +1599,7 @@ def check_plugin_updates():
 
     server = Server.query.get_or_404(server_id)
 
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
@@ -1613,18 +1631,18 @@ def install_plugin_from_url():
     plugin_name = data.get('plugin_name')  
     
     if not url:
-        return jsonify({'success': False, 'error': 'Chybí url'}), 400
+        return jsonify({'success': False, 'error': 'ChybĂ­ url'}), 400
     if not download_url:  
-        return jsonify({'success': False, 'error': 'Chybí download_url'}), 400
+        return jsonify({'success': False, 'error': 'ChybĂ­ download_url'}), 400
     if not server_id:
-        return jsonify({'success': False, 'error': 'Chybí server_id'}), 400
+        return jsonify({'success': False, 'error': 'ChybĂ­ server_id'}), 400
 
-    # Ověření vlastnictví serveru
+    # OvÄ›Ĺ™enĂ­ vlastnictvĂ­ serveru
     server = Server.query.get_or_404(server_id)
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    # Volání funkce pro instalaci
+    # VolĂˇnĂ­ funkce pro instalaci
     success, result = plugin_manager.install_plugin_from_modrinth_url(
         url, 
         server_id, 
@@ -1635,7 +1653,7 @@ def install_plugin_from_url():
     if success:
         return jsonify({'success': True, 'message': result})
     else:
-        # Speciální ošetření pro existující plugin
+        # SpeciĂˇlnĂ­ oĹˇetĹ™enĂ­ pro existujĂ­cĂ­ plugin
         if isinstance(result, dict) and result.get("type") == "plugin_exists":
             return jsonify({
                 'success': False,
@@ -1667,11 +1685,11 @@ def generate_player_access_code():
     
     server = Server.query.get_or_404(server_id)
     
-    # Ověření, že uživatel je admin/owner
+    # OvÄ›Ĺ™enĂ­, Ĺľe uĹľivatel je admin/owner
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
     
-    # Generování unikátního kódu
+    # GenerovĂˇnĂ­ unikĂˇtnĂ­ho kĂłdu
     def generate_code():
         return ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
     
@@ -1679,7 +1697,7 @@ def generate_player_access_code():
     while PlayerAccessCode.query.filter_by(access_code=code).first():
         code = generate_code()
     
-    # Vytvoření přístupového kódu
+    # VytvoĹ™enĂ­ pĹ™Ă­stupovĂ©ho kĂłdu
     access_code = PlayerAccessCode(
         server_id=server_id,
         access_code=code,
@@ -1726,17 +1744,17 @@ def revoke_player_access_code():
     code_id = data.get('code_id')
     
     if not code_id:
-        return jsonify({'success': False, 'error': 'Chybějící code_id'}), 400
+        return jsonify({'success': False, 'error': 'ChybÄ›jĂ­cĂ­ code_id'}), 400
     
     access_code = PlayerAccessCode.query.get(code_id)
     if not access_code:
-        return jsonify({'success': False, 'error': 'Kód nebyl nalezen'}), 404
+        return jsonify({'success': False, 'error': 'KĂłd nebyl nalezen'}), 404
     
     server = access_code.server
     
-    # Ověření, že uživatel je admin/owner
+    # OvÄ›Ĺ™enĂ­, Ĺľe uĹľivatel je admin/owner
     if server.owner_id != current_user.id and current_user not in server.admins:
-        return jsonify({'success': False, 'error': 'Nemáte oprávnění'}), 403
+        return jsonify({'success': False, 'error': 'NemĂˇte oprĂˇvnÄ›nĂ­'}), 403
     
     access_code.is_active = False
     db.session.commit()
@@ -1750,34 +1768,34 @@ def join_server_with_code():
     
     access_code = PlayerAccessCode.query.filter_by(access_code=access_code_str).first()
     if not access_code:
-        return jsonify({'success': False, 'error': 'Neplatný přístupový kód'})
+        return jsonify({'success': False, 'error': 'NeplatnĂ˝ pĹ™Ă­stupovĂ˝ kĂłd'})
     
-    # Kontrola platnosti kódu
+    # Kontrola platnosti kĂłdu
     if not access_code.is_active:
-        return jsonify({'success': False, 'error': 'Přístupový kód již není platný'})
+        return jsonify({'success': False, 'error': 'PĹ™Ă­stupovĂ˝ kĂłd jiĹľ nenĂ­ platnĂ˝'})
     if access_code.expires_at and access_code.expires_at < datetime.utcnow():
-        return jsonify({'success': False, 'error': 'Přístupový kód vypršel'})
+        return jsonify({'success': False, 'error': 'PĹ™Ă­stupovĂ˝ kĂłd vyprĹˇel'})
     if access_code.max_uses and access_code.use_count >= access_code.max_uses:
-        return jsonify({'success': False, 'error': 'Přístupový kód byl již použit maximální počet krát'})
+        return jsonify({'success': False, 'error': 'PĹ™Ă­stupovĂ˝ kĂłd byl jiĹľ pouĹľit maximĂˇlnĂ­ poÄŤet krĂˇt'})
     
     server = access_code.server
     
-    # Kontrola, zda uživatel už není vlastník nebo admin
+    # Kontrola, zda uĹľivatel uĹľ nenĂ­ vlastnĂ­k nebo admin
     if server.owner_id == current_user.id:
-        return jsonify({'success': False, 'error': 'Jste vlastníkem tohoto serveru – není třeba se připojovat kódem.'})
+        return jsonify({'success': False, 'error': 'Jste vlastnĂ­kem tohoto serveru â€“ nenĂ­ tĹ™eba se pĹ™ipojovat kĂłdem.'})
     if current_user in server.admins:
-        return jsonify({'success': False, 'error': 'Již jste administrátorem tohoto serveru.'})
+        return jsonify({'success': False, 'error': 'JiĹľ jste administrĂˇtorem tohoto serveru.'})
     
-    # Kontrola, zda už není hráčem
+    # Kontrola, zda uĹľ nenĂ­ hrĂˇÄŤem
     existing_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=access_code.server_id
     ).first()
     
     if existing_access:
-        return jsonify({'success': False, 'error': 'Již jste připojen k tomuto serveru jako hráč.'})
+        return jsonify({'success': False, 'error': 'JiĹľ jste pĹ™ipojen k tomuto serveru jako hrĂˇÄŤ.'})
     
-    # Vytvoření přístupu
+    # VytvoĹ™enĂ­ pĹ™Ă­stupu
     player_access = PlayerServerAccess(
         user_id=current_user.id,
         server_id=access_code.server_id,
@@ -1796,7 +1814,7 @@ def join_server_with_code():
 @server_api.route('/api/server/player-access/check')
 @login_required
 def check_player_access():
-    """Zkontroluje, zda má uživatel přístup k serveru jako hráč"""
+    """Zkontroluje, zda mĂˇ uĹľivatel pĹ™Ă­stup k serveru jako hrĂˇÄŤ"""
     server_id = request.args.get('server_id')
     
     has_access = PlayerServerAccess.query.filter_by(
@@ -1808,7 +1826,7 @@ def check_player_access():
 
 
 def is_mod_server(server):
-    """Zkontroluje, zda server podporuje módy"""
+    """Zkontroluje, zda server podporuje mĂłdy"""
     if not server.build_version or not server.build_version.build_type:
         return False
     
@@ -1825,16 +1843,16 @@ def is_mod_server(server):
 
 ############################ player API
 
-# Hráčské endpointy - pouze pro servery, ke kterým má hráč přístup
+# HrĂˇÄŤskĂ© endpointy - pouze pro servery, ke kterĂ˝m mĂˇ hrĂˇÄŤ pĹ™Ă­stup
 @server_api.route('/api/player/server/info')
 @login_required
 def player_server_info():
-    """Informace o serveru pro hráče"""
+    """Informace o serveru pro hrĂˇÄŤe"""
     server_id = request.args.get('server_id', type=int)
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
 
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server_id
@@ -1856,12 +1874,12 @@ def player_server_info():
 @server_api.route('/api/player/server/status')
 @login_required
 def player_server_status():
-    """Status serveru pro hráče"""
+    """Status serveru pro hrĂˇÄŤe"""
     server_id = request.args.get('server_id', type=int)
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
     
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server_id
@@ -1885,12 +1903,12 @@ def player_server_status():
 @server_api.route('/api/player/notices')
 @login_required
 def player_notices():
-    """Oznámení pro hráče"""
+    """OznĂˇmenĂ­ pro hrĂˇÄŤe"""
     server_id = request.args.get('server_id', type=int)
     if not server_id:
-        return jsonify({'error': 'Chybí server_id'}), 400
+        return jsonify({'error': 'ChybĂ­ server_id'}), 400
     
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server_id
@@ -1899,7 +1917,7 @@ def player_notices():
     if not has_access:
         return jsonify({'error': 'No access to this server'}), 403
     
-    # Hráči vidí pouze aktivní oznámení
+    # HrĂˇÄŤi vidĂ­ pouze aktivnĂ­ oznĂˇmenĂ­
     notices = PlayerNotice.query.filter_by(
         server_id=server_id, 
         is_active=True
@@ -1921,12 +1939,12 @@ def player_notices():
 @server_api.route('/api/player/mods/installed')
 @login_required
 def player_installed_mods():
-    """Nainstalované módy pro hráče"""
+    """NainstalovanĂ© mĂłdy pro hrĂˇÄŤe"""
     server_id = request.args.get('server_id', type=int)
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
 
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server_id
@@ -1938,7 +1956,7 @@ def player_installed_mods():
     server = Server.query.get_or_404(server_id)
 
     if not is_mod_server(server):
-        return jsonify({"error": "Server nepodporuje módy"}), 400
+        return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
     mods = []
     for mod in server.mods:
@@ -1957,12 +1975,12 @@ def player_installed_mods():
 @server_api.route('/api/player/mods/client-pack/download')
 @login_required
 def player_download_client_pack():
-    """Stažení klientského balíčku modů pro hráče"""
+    """StaĹľenĂ­ klientskĂ©ho balĂ­ÄŤku modĹŻ pro hrĂˇÄŤe"""
     server_id = request.args.get('server_id', type=int)
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
 
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server_id
@@ -1974,21 +1992,21 @@ def player_download_client_pack():
     server = Server.query.get_or_404(server_id)
 
     if not is_mod_server(server):
-        return jsonify({"error": "Server nepodporuje módy"}), 400
+        return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
-    # Zde zavolej funkci pro vytvoření/stáhnutí client packu
-    # Prozatím vrátíme chybu - tuto funkci budeš muset implementovat
+    # Zde zavolej funkci pro vytvoĹ™enĂ­/stĂˇhnutĂ­ client packu
+    # ProzatĂ­m vrĂˇtĂ­me chybu - tuto funkci budeĹˇ muset implementovat
     return jsonify({'error': 'Client pack download not implemented yet'}), 501
 
 @server_api.route('/api/player/modpacks/list')
 @login_required
 def player_list_modpacks():
-    """Seznam modpacků pro hráče"""
+    """Seznam modpackĹŻ pro hrĂˇÄŤe"""
     server_id = request.args.get('server_id', type=int)
     if not server_id:
-        return jsonify({'error': 'Chybí server_id'}), 400
+        return jsonify({'error': 'ChybĂ­ server_id'}), 400
     
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server_id
@@ -2024,11 +2042,11 @@ def player_list_modpacks():
 @server_api.route('/api/player/modpacks/download/<int:pack_id>')
 @login_required
 def player_download_modpack(pack_id):
-    """Stažení modpacku pro hráče"""
+    """StaĹľenĂ­ modpacku pro hrĂˇÄŤe"""
     modpack = ModPack.query.get_or_404(pack_id)
     server = modpack.server
     
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server.id
@@ -2040,7 +2058,7 @@ def player_download_modpack(pack_id):
     if not os.path.exists(modpack.file_path):
         return jsonify({'error': 'Soubor modpacku nebyl nalezen'}), 404
     
-    # Inkrementovat počítadlo stažení
+    # Inkrementovat poÄŤĂ­tadlo staĹľenĂ­
     modpack.download_count += 1
     db.session.commit()
     
@@ -2057,12 +2075,12 @@ def player_download_modpack(pack_id):
 @server_api.route('/api/player/server/build-type')
 @login_required
 def player_server_build_type():
-    """Typ buildu serveru pro hráče"""
+    """Typ buildu serveru pro hrĂˇÄŤe"""
     server_id = request.args.get('server_id', type=int)
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
     
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server_id
@@ -2083,15 +2101,15 @@ def player_server_build_type():
 @server_api.route('/api/player/report', methods=['POST'])
 @login_required
 def player_report():
-    """Odeslání nahlášení od hráče"""
+    """OdeslĂˇnĂ­ nahlĂˇĹˇenĂ­ od hrĂˇÄŤe"""
     data = request.get_json()
     server_id = data.get('server_id')
     message = data.get('message')
     
     if not server_id or not message:
-        return jsonify({'success': False, 'error': 'Chybí povinné údaje'}), 400
+        return jsonify({'success': False, 'error': 'ChybĂ­ povinnĂ© Ăşdaje'}), 400
     
-    # Kontrola přístupu hráče
+    # Kontrola pĹ™Ă­stupu hrĂˇÄŤe
     has_access = PlayerServerAccess.query.filter_by(
         user_id=current_user.id,
         server_id=server_id
@@ -2101,13 +2119,13 @@ def player_report():
         return jsonify({'success': False, 'error': 'No access to this server'}), 403
     
     try:
-        # Zde můžeš implementovat odeslání nahlášení (email, notifikace, uložení do DB)
-        # Prozatím vrátíme success
-        print(f"Nahlášení od hráče {current_user.username} pro server {server_id}: {message}")
+        # Zde mĹŻĹľeĹˇ implementovat odeslĂˇnĂ­ nahlĂˇĹˇenĂ­ (email, notifikace, uloĹľenĂ­ do DB)
+        # ProzatĂ­m vrĂˇtĂ­me success
+        print(f"NahlĂˇĹˇenĂ­ od hrĂˇÄŤe {current_user.username} pro server {server_id}: {message}")
         
         return jsonify({
             'success': True, 
-            'message': 'Nahlášení bylo úspěšně odesláno administrátorům'
+            'message': 'NahlĂˇĹˇenĂ­ bylo ĂşspÄ›ĹˇnÄ› odeslĂˇno administrĂˇtorĹŻm'
         })
         
     except Exception as e:

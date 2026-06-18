@@ -6,16 +6,23 @@
     <div>
         <p class="admin-kicker">Knihovna buildů</p>
         <h1>Synchronizace buildů</h1>
-        <p class="admin-lead">Aktualizace dostupných verzí pro jednotlivé typy Minecraft serverů.</p>
+        <p class="admin-lead">Aktualizace dostupných verzí pro jednotlivé typy Minecraft serverů a rychlý přehled toho, co je už v systému uložené.</p>
     </div>
-    <div class="admin-count">
-        <strong>{{ build_types|length }}</strong>
-        <span>typů buildů</span>
+    <div class="admin-count-group">
+        <div class="admin-count">
+            <strong>{{ total_builds }}</strong>
+            <span>buildů celkem</span>
+        </div>
+        <div class="admin-count">
+            <strong>{{ build_types|length }}</strong>
+            <span>typů buildů</span>
+        </div>
     </div>
 </section>
 
 <section class="build-grid">
-    {% for bt in build_types %}
+    {% for card in build_cards %}
+    {% set bt = card.type %}
     <article class="sync-card">
         <div class="sync-card-head">
             <span class="sync-icon"><i class="fas fa-database"></i></span>
@@ -24,9 +31,39 @@
                 <p>{{ bt.description or 'Synchronizace dostupných verzí a stažení metadat.' }}</p>
             </div>
         </div>
+
+        <div class="build-card-stats">
+            <div>
+                <strong>{{ card.count }}</strong>
+                <span>buildů</span>
+            </div>
+            <div>
+                <strong>{{ card.mc_version_count }}</strong>
+                <span>MC verzí</span>
+            </div>
+        </div>
+
+        <label class="build-select-label" for="buildVersions-{{ bt.id }}">Dostupné buildy</label>
+        <select id="buildVersions-{{ bt.id }}" class="build-version-select" {% if not card.count %}disabled{% endif %}>
+            {% if card.count %}
+                {% for mc_version, versions in card.groups.items() %}
+                <optgroup label="Minecraft {{ mc_version }}">
+                    {% for version in versions %}
+                    <option>
+                        MC {{ version.mc_version }}
+                        {% if version.build_number %} | build {{ version.build_number }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </optgroup>
+                {% endfor %}
+            {% else %}
+                <option>Zatím nejsou uložené žádné buildy</option>
+            {% endif %}
+        </select>
+
         <button class="btn btn-primary sync-build" data-build="{{ bt.name }}">
             <i class="fas fa-sync-alt"></i>
-            Synchronizovat
+            Synchronizovat nejnovější verze
         </button>
         <div class="sync-result" id="result-{{ bt.name }}"></div>
     </article>
@@ -50,6 +87,9 @@ document.querySelectorAll('.sync-build').forEach(btn=>{
             .then(data=>{
                 resultDiv.className = `sync-result ${data.success ? 'is-success' : 'is-error'}`;
                 resultDiv.innerHTML=data.message||(data.error?`Chyba: ${data.error}`:'Hotovo');
+                if (data.success) {
+                    setTimeout(() => location.reload(), 1200);
+                }
             })
             .catch(()=>{
                 resultDiv.className = 'sync-result is-error';

@@ -4,6 +4,7 @@ from app import app
 from models import db, Server
 from mc_server import get_server_paths
 from sqlalchemy import select
+from app_config import PORT_RANGE_END, PORT_RANGE_START
 
 def update_plugin_config(server_id):
     with app.app_context():
@@ -76,7 +77,7 @@ def update_server_ports(server_id):
                         used_ports.add(s.query_port)
 
             # 3. Najít volné porty (s garantovaným rozestupem)
-            def find_available_port_pair(start_port=25565):
+            def find_available_port_pair(start_port=PORT_RANGE_START):
                 port = start_port
                 while True:
                     # Hlavní port musí být sudý, query port následující liché číslo
@@ -85,7 +86,7 @@ def update_server_ports(server_id):
                         (port + 1) not in used_ports):
                         return port, port + 1
                     port += 1
-                    if port > 30000:  # Bezpečný limit
+                    if port > PORT_RANGE_END:  # Bezpečný limit
                         raise ValueError("Nebyl nalezen žádný volný port")
 
             minecraft_port, query_port = find_available_port_pair()

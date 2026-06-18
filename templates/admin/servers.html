@@ -6,12 +6,176 @@
     <div>
         <p class="admin-kicker">Server fleet</p>
         <h1>Správa serverů</h1>
-        <p class="admin-lead">Přehled všech instancí, jejich vlastníků, buildů a okamžitého stavu.</p>
+        <p class="admin-lead">Vytvoření nové instance, přehled všech serverů a aktuální obsazení CPU jader podle afinity.</p>
+        <p class="admin-runtime-note {% if java_info.warning %}is-warning{% endif %}">
+            Java: {{ java_info.version }} přes <code>{{ java_info.executable }}</code>
+            {% if java_info.warning %} &middot; Nejnovější Minecraft/Fabric buildy mohou vyžadovat Java 25.{% endif %}
+        </p>
     </div>
     <div class="admin-count">
         <strong>{{ servers|length }}</strong>
         <span>serverů celkem</span>
     </div>
+</section>
+
+<section class="admin-grid two-col server-admin-grid">
+    <article class="admin-panel">
+        <div class="panel-title">
+            <i class="fas fa-plus"></i>
+            <h2>Nový server</h2>
+        </div>
+
+        <form id="createServerForm" class="admin-form compact-form">
+            <label>
+                Název serveru
+                <input type="text" name="name" placeholder="např. survival_01" minlength="3" maxlength="32" required>
+            </label>
+
+            <label>
+                Vlastník
+                <select name="owner_id" required>
+                    {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.username }} &lt;{{ user.email }}&gt;</option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <div class="form-row">
+                <label>
+                    Build
+                    <select id="createBuildType" name="build_type_id" required>
+                        {% for build_type in build_types %}
+                        <option value="{{ build_type.id }}">{{ build_type.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <label>
+                    Úroveň
+                    <select name="service_level" required>
+                        {% for level, meta in service_levels.items() %}
+                        <option value="{{ level }}">{{ level }} - {{ meta.label }} ({{ meta.cores }} jádra)</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+
+            <label>
+                Verze buildu
+                <select id="createBuildVersion" name="build_version_id" required>
+                    {% for version in build_versions %}
+                    <option value="{{ version.id }}" data-build-type-id="{{ version.build_type_id }}">
+                        {{ version.build_type.name }} {{ version.mc_version }}
+                        {% if version.build_number %} | build {{ version.build_number }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <div class="form-row">
+                <label>
+                    Seed světa
+                    <input type="text" name="seed" placeholder="volitelné, např. 123456789">
+                </label>
+
+                <label>
+                    MOTD
+                    <input type="text" name="motd" maxlength="120" placeholder="Minecraft Server Manager">
+                </label>
+            </div>
+
+            <div class="form-row">
+                <label>
+                    Herní mód
+                    <select name="gamemode">
+                        <option value="survival">Survival</option>
+                        <option value="creative">Creative</option>
+                        <option value="adventure">Adventure</option>
+                        <option value="spectator">Spectator</option>
+                    </select>
+                </label>
+
+                <label>
+                    Obtížnost
+                    <select name="difficulty">
+                        <option value="peaceful">Peaceful</option>
+                        <option value="easy">Easy</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="form-row">
+                <label>
+                    Max hráčů
+                    <input type="number" name="max_players" min="1" max="200" value="20">
+                </label>
+
+                <label>
+                    Spawn protection
+                    <input type="number" name="spawn_protection" min="0" max="32" value="0">
+                </label>
+            </div>
+
+            <div class="form-toggle-grid">
+                <label class="toggle-row">
+                    <input type="hidden" name="pvp" value="false">
+                    <input type="checkbox" name="pvp" value="true" checked>
+                    <span>Povolit PvP</span>
+                </label>
+                <label class="toggle-row">
+                    <input type="hidden" name="online_mode" value="false">
+                    <input type="checkbox" name="online_mode" value="true">
+                    <span>Online mode</span>
+                </label>
+                <label class="toggle-row">
+                    <input type="hidden" name="enable_command_block" value="false">
+                    <input type="checkbox" name="enable_command_block" value="true">
+                    <span>Command blocky</span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-primary" type="submit">
+                    <i class="fas fa-plus"></i>
+                    Vytvořit server
+                </button>
+                <span id="createServerResult" class="form-result"></span>
+            </div>
+        </form>
+    </article>
+
+    <article class="admin-panel cpu-panel">
+        <div class="panel-title">
+            <i class="fas fa-microchip"></i>
+            <h2>CPU afinita</h2>
+        </div>
+
+        <div class="cpu-summary">
+            <div>
+                <strong>{{ cpu_summary.total }}</strong>
+                <span>jader celkem</span>
+            </div>
+            <div>
+                <strong>{{ cpu_summary.used }}</strong>
+                <span>zaaretováno</span>
+            </div>
+            <div>
+                <strong>{{ cpu_summary.free }}</strong>
+                <span>volných</span>
+            </div>
+        </div>
+
+        <div class="cpu-core-grid" aria-label="Přehled CPU jader">
+            {% for core in cpu_summary.cores %}
+            <div class="cpu-core {% if core.servers %}is-used{% else %}is-free{% endif %}" title="{% if core.servers %}Jádro {{ core.index }}: {{ core.servers|join(', ') }}{% else %}Jádro {{ core.index }}: volné{% endif %}">
+                <span>{{ core.index }}</span>
+                <small>{% if core.servers %}{{ core.servers|join(', ') }}{% else %}volné{% endif %}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </article>
 </section>
 
 <section class="admin-panel">
@@ -23,6 +187,7 @@
                     <th>Název</th>
                     <th>Vlastník</th>
                     <th>Build</th>
+                    <th>Úroveň</th>
                     <th>Stav</th>
                     <th>Akce</th>
                 </tr>
@@ -33,15 +198,27 @@
                     <td class="muted">#{{ s.id }}</td>
                     <td>
                         <strong>{{ s.name }}</strong>
-                        <span class="row-subtitle">Port {{ s.server_port }}</span>
+                        <span class="row-subtitle">Port {{ s.server_port }} / query {{ s.query_port }}</span>
                     </td>
                     <td>{{ s.owner.username }}</td>
                     <td>
                         {% if s.build_version %}
                         <span class="badge-loader">{{ s.build_version.build_type.name }}</span>
-                        <span class="row-subtitle">{{ s.build_version.mc_version }}</span>
+                        <span class="row-subtitle">
+                            {{ s.build_version.mc_version }}
+                            {% if s.build_version.build_number %} | build {{ s.build_version.build_number }}{% endif %}
+                        </span>
                         {% else %}
                         <span class="text-muted">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set service = service_levels.get(s.service_level) %}
+                        {% if service %}
+                        <span class="badge-type">{{ service.label }}</span>
+                        <span class="row-subtitle">{{ service.cores }} jádra</span>
+                        {% else %}
+                        <span class="text-muted">Level {{ s.service_level }}</span>
                         {% endif %}
                     </td>
                     <td class="server-status-cell"><span class="status-badge checking">Kontroluji...</span></td>
@@ -53,7 +230,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="empty-cell">Žádné servery zatím nejsou v systému.</td>
+                    <td colspan="7" class="empty-cell">Žádné servery zatím nejsou v systému.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -62,6 +239,75 @@
 </section>
 
 <script>
+const buildTypeSelect = document.getElementById('createBuildType');
+const buildVersionSelect = document.getElementById('createBuildVersion');
+const createServerForm = document.getElementById('createServerForm');
+const createServerResult = document.getElementById('createServerResult');
+
+function filterBuildVersions() {
+    const selectedBuildType = buildTypeSelect.value;
+    let firstVisible = null;
+
+    Array.from(buildVersionSelect.options).forEach(option => {
+        const matches = option.dataset.buildTypeId === selectedBuildType;
+        option.hidden = !matches;
+        option.disabled = !matches;
+        if (matches && !firstVisible) firstVisible = option;
+    });
+
+    if (firstVisible) {
+        buildVersionSelect.value = firstVisible.value;
+        buildVersionSelect.disabled = false;
+    } else {
+        buildVersionSelect.value = '';
+        buildVersionSelect.disabled = true;
+    }
+}
+
+if (buildTypeSelect && buildVersionSelect) {
+    buildTypeSelect.addEventListener('change', filterBuildVersions);
+    filterBuildVersions();
+}
+
+if (createServerForm) {
+    createServerForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        const submitButton = this.querySelector('button[type="submit"]');
+        const formData = new FormData(this);
+        const payload = {};
+        for (const key of new Set(formData.keys())) {
+            const values = formData.getAll(key);
+            payload[key] = values[values.length - 1];
+        }
+
+        submitButton.disabled = true;
+        createServerResult.className = 'form-result is-loading';
+        createServerResult.textContent = 'Vytvářím server...';
+
+        fetch('/admin/server/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        })
+            .then(async response => {
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Server se nepodařilo vytvořit.');
+                }
+                createServerResult.className = 'form-result is-success';
+                createServerResult.textContent = data.message || 'Server byl vytvořen.';
+                setTimeout(() => location.reload(), 900);
+            })
+            .catch(error => {
+                createServerResult.className = 'form-result is-error';
+                createServerResult.textContent = error.message;
+            })
+            .finally(() => {
+                submitButton.disabled = false;
+            });
+    });
+}
+
 function updateStatus(serverId, cell) {
     fetch(`/admin/server/${serverId}/status`)
         .then(r => r.json())

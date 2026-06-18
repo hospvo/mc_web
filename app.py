@@ -9,11 +9,12 @@ from routes_notices import notices_api
 from player_view import player_api
 from admin import admin_bp
 from models import db, User, Server, PlayerAccessCode, PlayerServerAccess
+from app_config import DATABASE_URI, SECRET_KEY
 import requests
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'tajnyklic'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
+app.config['SECRET_KEY'] = SECRET_KEY
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 

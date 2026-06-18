@@ -172,6 +172,24 @@ main:has(.admin-shell) + footer {
     line-height: 1.65;
 }
 
+.admin-runtime-note {
+    margin: 10px 0 0;
+    color: var(--admin-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.admin-runtime-note code {
+    padding: 2px 5px;
+    background: #e9eef4;
+    border-radius: 6px;
+}
+
+.admin-runtime-note.is-warning {
+    color: var(--admin-amber);
+    font-weight: 700;
+}
+
 .admin-count {
     min-width: 132px;
     padding: 14px 16px;
@@ -180,6 +198,12 @@ main:has(.admin-shell) + footer {
     border: 1px solid var(--admin-line);
     border-radius: 8px;
     box-shadow: var(--admin-shadow);
+}
+
+.admin-count-group {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
 }
 
 .admin-count strong {
@@ -330,6 +354,190 @@ a.stat-card:hover {
 
 .quick-actions a:hover {
     border-color: rgba(47, 125, 88, 0.45);
+}
+
+.server-admin-grid {
+    align-items: start;
+    margin-bottom: 18px;
+}
+
+.admin-form {
+    max-width: none;
+    margin: 16px 0 0;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.admin-form label {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 13px;
+    color: var(--admin-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.admin-form input,
+.admin-form select {
+    width: 100%;
+    height: 42px;
+    margin: 0;
+    padding: 0 12px;
+    color: var(--admin-text);
+    background: var(--admin-surface);
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.admin-form input:focus,
+.admin-form select:focus {
+    border-color: rgba(47, 125, 88, 0.55);
+    box-shadow: 0 0 0 3px rgba(47, 125, 88, 0.12);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.form-toggle-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 2px 0 14px;
+}
+
+.admin-form .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 42px;
+    margin: 0;
+    padding: 0 11px;
+    color: var(--admin-text);
+    background: var(--admin-surface-soft);
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-size: 0.82rem;
+    text-transform: none;
+}
+
+.admin-form .toggle-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.form-result {
+    color: var(--admin-muted);
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.form-result.is-loading {
+    color: var(--admin-amber);
+}
+
+.form-result.is-success {
+    color: var(--admin-primary);
+}
+
+.form-result.is-error {
+    color: var(--admin-red);
+}
+
+.cpu-panel {
+    display: grid;
+    gap: 16px;
+}
+
+.cpu-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.cpu-summary div {
+    padding: 12px;
+    background: var(--admin-surface-soft);
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+}
+
+.cpu-summary strong {
+    display: block;
+    color: var(--admin-text);
+    font-size: 1.45rem;
+    line-height: 1;
+}
+
+.cpu-summary span {
+    display: block;
+    margin-top: 5px;
+    color: var(--admin-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.cpu-core-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 8px;
+}
+
+.cpu-core {
+    min-height: 58px;
+    padding: 8px;
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.cpu-core span {
+    display: block;
+    color: var(--admin-text);
+    font-size: 0.88rem;
+    font-weight: 800;
+}
+
+.cpu-core small {
+    display: block;
+    margin-top: 4px;
+    color: var(--admin-muted);
+    font-size: 0.68rem;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cpu-core.is-used {
+    background: #fff4dc;
+    border-color: rgba(184, 117, 3, 0.35);
+}
+
+.cpu-core.is-free {
+    background: #e9f8ef;
+    border-color: rgba(47, 125, 88, 0.28);
 }
 
 .admin-search {
@@ -541,6 +749,66 @@ a.stat-card:hover {
     padding: 18px;
 }
 
+.build-card-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.build-card-stats div {
+    padding: 12px;
+    background: var(--admin-surface-soft);
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+}
+
+.build-card-stats strong {
+    display: block;
+    color: var(--admin-text);
+    font-size: 1.45rem;
+    line-height: 1;
+}
+
+.build-card-stats span {
+    display: block;
+    margin-top: 5px;
+    color: var(--admin-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.build-select-label {
+    color: var(--admin-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.build-version-select {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    color: var(--admin-text);
+    background: var(--admin-surface);
+    border: 1px solid var(--admin-line);
+    border-radius: 8px;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 0.88rem;
+    outline: none;
+}
+
+.build-version-select:focus {
+    border-color: rgba(47, 125, 88, 0.55);
+    box-shadow: 0 0 0 3px rgba(47, 125, 88, 0.12);
+}
+
+.build-version-select:disabled {
+    color: var(--admin-muted);
+    background: #edf1f5;
+    cursor: not-allowed;
+}
+
 .sync-result {
     min-height: 22px;
     color: var(--admin-muted);
@@ -707,8 +975,13 @@ a.stat-card:hover {
         flex-direction: column;
     }
 
+
     .admin-count {
         text-align: left;
+    }
+
+    .admin-count-group {
+        flex-direction: column;
     }
 
     .admin-stats {
@@ -716,6 +989,12 @@ a.stat-card:hover {
     }
 
     .quick-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .form-row,
+    .form-toggle-grid,
+    .cpu-summary {
         grid-template-columns: 1fr;
     }
 }
