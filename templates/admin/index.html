@@ -1,0 +1,67 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Superadmin{% endblock %}
+
+{% block admin_content %}
+<section class="admin-page-head">
+    <div>
+        <p class="admin-kicker">Řídicí místnost</p>
+        <h1>Přehled systému</h1>
+        <p class="admin-lead">Rychlý stav hostingu, správy serverů, uživatelů, pluginů, módů a buildů.</p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('admin.servers') }}">
+        <i class="fas fa-server"></i>
+        Spravovat servery
+    </a>
+</section>
+
+<section class="admin-stats" aria-label="Systemove statistiky">
+    <a class="stat-card" href="{{ url_for('admin.servers') }}">
+        <span class="stat-icon server"><i class="fas fa-server"></i></span>
+        <span class="stat-value">{{ servers|length }}</span>
+        <span class="stat-label">Servery</span>
+    </a>
+    <a class="stat-card" href="{{ url_for('admin.users') }}">
+        <span class="stat-icon users"><i class="fas fa-users"></i></span>
+        <span class="stat-value">{{ users }}</span>
+        <span class="stat-label">Uživatelé</span>
+    </a>
+    <div class="stat-card">
+        <span class="stat-icon plugins"><i class="fas fa-plug"></i></span>
+        <span class="stat-value">{{ plugins }}</span>
+        <span class="stat-label">Pluginy</span>
+    </div>
+    <a class="stat-card" href="{{ url_for('admin.mods') }}">
+        <span class="stat-icon mods"><i class="fas fa-puzzle-piece"></i></span>
+        <span class="stat-value">{{ mods }}</span>
+        <span class="stat-label">Módy</span>
+    </a>
+    <a class="stat-card" href="{{ url_for('admin.builds') }}">
+        <span class="stat-icon builds"><i class="fas fa-cubes"></i></span>
+        <span class="stat-value">{{ builds }}</span>
+        <span class="stat-label">Buildy</span>
+    </a>
+</section>
+
+<section class="admin-grid two-col">
+    <article class="admin-panel">
+        <div class="panel-title">
+            <i class="fas fa-route"></i>
+            <h2>Rychlé akce</h2>
+        </div>
+        <div class="quick-actions">
+            <a href="{{ url_for('admin.servers') }}"><i class="fas fa-play"></i> Start/stop serverů</a>
+            <a href="{{ url_for('admin.users') }}"><i class="fas fa-user-shield"></i> Role uživatelů</a>
+            <a href="{{ url_for('admin.builds') }}"><i class="fas fa-sync-alt"></i> Synchronizace buildů</a>
+            <a href="{{ url_for('admin.mods') }}"><i class="fas fa-trash-alt"></i> Správa módů</a>
+        </div>
+    </article>
+
+    <article class="admin-panel admin-note">
+        <div class="panel-title">
+            <i class="fas fa-shield-alt"></i>
+            <h2>Provozní poznámka</h2>
+        </div>
+        <p>Administrace má přístup ke všem serverům a globálním položkám. Nebezpečné akce jsou oddělené červenými tlačítky a potvrzením tam, kde dává smysl.</p>
+    </article>
+</section>
+{% endblock %}

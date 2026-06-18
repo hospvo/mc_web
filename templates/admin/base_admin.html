@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+{% endblock %}
+
+{% macro admin_nav(endpoint, icon, label) %}
+<li class="{% if request.endpoint == endpoint %}active{% endif %}">
+    <a href="{{ url_for(endpoint) }}">
+        <i class="{{ icon }}"></i>
+        <span>{{ label }}</span>
+    </a>
+</li>
+{% endmacro %}
+
+{% block content %}
+<div class="admin-shell">
+    <aside class="admin-sidebar" aria-label="Superadmin navigace">
+        <div class="sidebar-header">
+            <div class="admin-mark">
+                <i class="fas fa-crown"></i>
+            </div>
+            <div>
+                <h2>Superadmin</h2>
+                <p>Řídicí místnost</p>
+            </div>
+        </div>
+
+        <ul class="admin-nav">
+            {{ admin_nav('admin.index', 'fas fa-chart-line', 'Přehled') }}
+            {{ admin_nav('admin.servers', 'fas fa-server', 'Servery') }}
+            {{ admin_nav('admin.users', 'fas fa-users', 'Uživatelé') }}
+            {{ admin_nav('admin.builds', 'fas fa-cubes', 'Buildy') }}
+            {{ admin_nav('admin.mods', 'fas fa-puzzle-piece', 'Módy') }}
+        </ul>
+
+        <div class="sidebar-footer">
+            <span>Přihlášen jako</span>
+            <strong>{{ current_user.username }}</strong>
+        </div>
+    </aside>
+
+    <main class="admin-main">
+        {% block admin_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}

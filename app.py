@@ -7,6 +7,7 @@ from mc_server import server_api
 from routes_mods import mods_api
 from routes_notices import notices_api
 from player_view import player_api
+from admin import admin_bp
 from models import db, User, Server, PlayerAccessCode, PlayerServerAccess
 import requests
 
@@ -37,6 +38,7 @@ app.register_blueprint(server_api)
 app.register_blueprint(mods_api)
 app.register_blueprint(notices_api)
 app.register_blueprint(player_api)
+app.register_blueprint(admin_bp)
 
 @app.route('/')
 def index():

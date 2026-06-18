@@ -1201,6 +1201,7 @@ def restart_server_api():
     start_success = start_server(server_id)
     return jsonify({'success': start_success})
 
+@login_required
 @server_api.route('/api/server/logs')
 def server_logs_api():
     server_id = request.args.get('server_id', type=int)

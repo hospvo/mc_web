@@ -1,0 +1,62 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Synchronizace buildů{% endblock %}
+
+{% block admin_content %}
+<section class="admin-page-head">
+    <div>
+        <p class="admin-kicker">Knihovna buildů</p>
+        <h1>Synchronizace buildů</h1>
+        <p class="admin-lead">Aktualizace dostupných verzí pro jednotlivé typy Minecraft serverů.</p>
+    </div>
+    <div class="admin-count">
+        <strong>{{ build_types|length }}</strong>
+        <span>typů buildů</span>
+    </div>
+</section>
+
+<section class="build-grid">
+    {% for bt in build_types %}
+    <article class="sync-card">
+        <div class="sync-card-head">
+            <span class="sync-icon"><i class="fas fa-database"></i></span>
+            <div>
+                <h2>{{ bt.name }}</h2>
+                <p>{{ bt.description or 'Synchronizace dostupných verzí a stažení metadat.' }}</p>
+            </div>
+        </div>
+        <button class="btn btn-primary sync-build" data-build="{{ bt.name }}">
+            <i class="fas fa-sync-alt"></i>
+            Synchronizovat
+        </button>
+        <div class="sync-result" id="result-{{ bt.name }}"></div>
+    </article>
+    {% else %}
+    <article class="admin-panel empty-panel">
+        <p>Žádné build typy zatím nejsou v systému.</p>
+    </article>
+    {% endfor %}
+</section>
+
+<script>
+document.querySelectorAll('.sync-build').forEach(btn=>{
+    btn.addEventListener('click',function(){
+        const build=this.dataset.build;
+        const resultDiv=document.getElementById(`result-${build}`);
+        this.disabled = true;
+        resultDiv.className = 'sync-result is-loading';
+        resultDiv.innerHTML='<i class="fas fa-spinner fa-spin"></i> Synchronizuji...';
+        fetch(`/admin/sync/${build}`,{method:'POST'})
+            .then(r=>r.json())
+            .then(data=>{
+                resultDiv.className = `sync-result ${data.success ? 'is-success' : 'is-error'}`;
+                resultDiv.innerHTML=data.message||(data.error?`Chyba: ${data.error}`:'Hotovo');
+            })
+            .catch(()=>{
+                resultDiv.className = 'sync-result is-error';
+                resultDiv.innerHTML='Chyba při komunikaci se serverem';
+            })
+            .finally(()=>{ this.disabled = false; });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Správa uživatelů{% endblock %}
+
+{% block admin_content %}
+<section class="admin-page-head">
+    <div>
+        <p class="admin-kicker">Přístupy</p>
+        <h1>Správa uživatelů</h1>
+        <p class="admin-lead">Role superadminů, kontakty a bezpečné odstranění účtů.</p>
+    </div>
+    <div class="admin-search">
+        <input type="text" id="userSearch" placeholder="Filtrovat uživatele...">
+        <i class="fas fa-search search-icon"></i>
+    </div>
+</section>
+
+<section class="admin-panel">
+    <div class="table-responsive">
+        <table class="admin-table" id="usersTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Uživatel</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Akce</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in users %}
+            <tr>
+                <td class="muted">#{{ u.id }}</td>
+                <td><strong>{{ u.username }}</strong></td>
+                <td>{{ u.email }}</td>
+                <td>
+                    {% if u.is_superadmin %}
+                    <span class="badge-success">Superadmin</span>
+                    {% else %}
+                    <span class="badge-secondary">Uživatel</span>
+                    {% endif %}
+                </td>
+                <td class="actions">
+                    {% if not u.is_superadmin %}
+                    <button class="btn btn-sm btn-primary make-admin" data-id="{{ u.id }}"><i class="fas fa-user-shield"></i> Povýšit</button>
+                    {% else %}
+                    <button class="btn btn-sm btn-warning remove-admin" data-id="{{ u.id }}"><i class="fas fa-user-minus"></i> Odebrat</button>
+                    {% endif %}
+                    <button class="btn btn-sm btn-danger delete-user" data-id="{{ u.id }}"><i class="fas fa-trash-alt"></i> Smazat</button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                    <td colspan="5" class="empty-cell">Žádní uživatelé zatím nejsou v systému.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<script>
+function handleUserAction(url, data) {
+    fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+        .then(r=>r.json()).then(d=>{if(d.success) location.reload(); else alert(d.error)});
+}
+
+document.getElementById('userSearch').addEventListener('input', function() {
+    const filter = this.value.toLowerCase();
+    document.querySelectorAll('#usersTable tbody tr').forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(filter) ? '' : 'none';
+    });
+});
+
+document.querySelectorAll('.make-admin').forEach(btn=>{
+    btn.addEventListener('click',()=>handleUserAction(`/admin/user/${btn.dataset.id}/make-admin`,{}));
+});
+document.querySelectorAll('.remove-admin').forEach(btn=>{
+    btn.addEventListener('click',()=>handleUserAction(`/admin/user/${btn.dataset.id}/remove-admin`,{}));
+});
+document.querySelectorAll('.delete-user').forEach(btn=>{
+    btn.addEventListener('click',()=>{if(confirm('Opravdu smazat tohoto uživatele?')) handleUserAction(`/admin/user/${btn.dataset.id}/delete`,{});});
+});
+</script>
+{% endblock %}

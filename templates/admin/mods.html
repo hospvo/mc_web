@@ -1,0 +1,175 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Správa módů{% endblock %}
+
+{% block admin_content %}
+<section class="admin-page-head">
+    <div>
+        <p class="admin-kicker">Knihovna módů</p>
+        <h1>Správa módů</h1>
+        <p class="admin-lead">Globální seznam módů, verzí, loaderů a souborů v systému.</p>
+    </div>
+    <div class="admin-search">
+        <input type="text" id="modSearch" class="form-control" placeholder="Filtrovat podle názvu, verze, loaderu...">
+        <i class="fas fa-search search-icon"></i>
+    </div>
+</section>
+
+<section class="admin-panel">
+    <div class="table-responsive">
+        <table class="admin-table" id="modsTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Název</th>
+                    <th>Verze</th>
+                    <th>Loader</th>
+                    <th>MC verze</th>
+                    <th>Typ</th>
+                    <th>Autor</th>
+                    <th>Akce</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mod in mods %}
+                <tr data-mod-id="{{ mod.id }}">
+                    <td class="muted">#{{ mod.id }}</td>
+                    <td>
+                        <strong>{{ mod.display_name or mod.name }}</strong>
+                        {% if mod.name != mod.display_name %}
+                        <span class="row-subtitle">{{ mod.name }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ mod.version or '-' }}</td>
+                    <td>
+                        {% if mod.loader %}
+                        <span class="badge-loader">{{ mod.loader|upper }}</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ mod.minecraft_version or '-' }}</td>
+                    <td>
+                        {% if mod.plugin_type %}
+                        <span class="badge-type">{{ mod.plugin_type }}</span>
+                        {% else %}
+                        <span class="badge-type optional">optional</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ mod.author or '-' }}</td>
+                    <td class="actions">
+                        <button class="btn btn-sm btn-danger delete-mod" data-id="{{ mod.id }}" data-name="{{ mod.display_name or mod.name }}">
+                            <i class="fas fa-trash-alt"></i>
+                            Smazat
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="empty-cell">Žádné módy zatím nejsou v systému.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div id="deleteModal" class="modal">
+    <div class="modal-content">
+        <button class="close" type="button" aria-label="Zavřít">&times;</button>
+        <h3>Potvrzení smazání</h3>
+        <p>Opravdu chcete smazat mod <strong id="deleteModName"></strong>?</p>
+        <p class="text-danger">Tato akce je nevratná a odstraní také soubor módu z disku.</p>
+        <div class="modal-buttons">
+            <button id="cancelDeleteBtn" class="btn btn-secondary">Zrušit</button>
+            <button id="confirmDeleteBtn" class="btn btn-danger">Smazat</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('modSearch');
+    const tableRows = document.querySelectorAll('#modsTable tbody tr');
+
+    searchInput.addEventListener('input', function() {
+        const filter = this.value.toLowerCase();
+        tableRows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(filter) ? '' : 'none';
+        });
+    });
+
+    const modal = document.getElementById('deleteModal');
+    const closeBtn = modal.querySelector('.close');
+    const cancelBtn = document.getElementById('cancelDeleteBtn');
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    let currentModId = null;
+    let currentRow = null;
+
+    function closeModal() {
+        modal.style.display = 'none';
+        currentModId = null;
+        currentRow = null;
+    }
+
+    document.querySelectorAll('.delete-mod').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            currentModId = this.dataset.id;
+            currentRow = this.closest('tr');
+            document.getElementById('deleteModName').innerText = this.dataset.name;
+            modal.style.display = 'flex';
+        });
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    confirmBtn.addEventListener('click', async function() {
+        if (!currentModId) return;
+        confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mažu...';
+
+        try {
+            const response = await fetch(`/admin/mod/${currentModId}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await response.json();
+            if (result.success) {
+                if (currentRow) currentRow.remove();
+                if (document.querySelectorAll('#modsTable tbody tr').length === 0) {
+                    document.querySelector('#modsTable tbody').innerHTML = '<tr><td colspan="8" class="empty-cell">Žádné módy nenalezeny</td></tr>';
+                }
+                showToast('Mod úspěšně smazán', 'success');
+            } else {
+                showToast(result.error || 'Chyba při mazání', 'error');
+            }
+        } catch (err) {
+            showToast('Chyba při komunikaci se serverem', 'error');
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Smazat';
+            closeModal();
+        }
+    });
+
+    function showToast(message, type) {
+        let toast = document.querySelector('.admin-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'admin-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        toast.classList.add('show', type);
+        setTimeout(() => {
+            toast.classList.remove('show', type);
+        }, 3000);
+    }
+});
+</script>
+{% endblock %}

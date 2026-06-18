@@ -1,0 +1,98 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Správa serverů{% endblock %}
+
+{% block admin_content %}
+<section class="admin-page-head">
+    <div>
+        <p class="admin-kicker">Server fleet</p>
+        <h1>Správa serverů</h1>
+        <p class="admin-lead">Přehled všech instancí, jejich vlastníků, buildů a okamžitého stavu.</p>
+    </div>
+    <div class="admin-count">
+        <strong>{{ servers|length }}</strong>
+        <span>serverů celkem</span>
+    </div>
+</section>
+
+<section class="admin-panel">
+    <div class="table-responsive">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Název</th>
+                    <th>Vlastník</th>
+                    <th>Build</th>
+                    <th>Stav</th>
+                    <th>Akce</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in servers %}
+                <tr data-id="{{ s.id }}">
+                    <td class="muted">#{{ s.id }}</td>
+                    <td>
+                        <strong>{{ s.name }}</strong>
+                        <span class="row-subtitle">Port {{ s.server_port }}</span>
+                    </td>
+                    <td>{{ s.owner.username }}</td>
+                    <td>
+                        {% if s.build_version %}
+                        <span class="badge-loader">{{ s.build_version.build_type.name }}</span>
+                        <span class="row-subtitle">{{ s.build_version.mc_version }}</span>
+                        {% else %}
+                        <span class="text-muted">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td class="server-status-cell"><span class="status-badge checking">Kontroluji...</span></td>
+                    <td class="actions">
+                        <button class="btn btn-success btn-sm start-server" data-id="{{ s.id }}"><i class="fas fa-play"></i> Start</button>
+                        <button class="btn btn-danger btn-sm stop-server" data-id="{{ s.id }}"><i class="fas fa-stop"></i> Stop</button>
+                        <button class="btn btn-warning btn-sm restart-server" data-id="{{ s.id }}"><i class="fas fa-sync-alt"></i> Restart</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="empty-cell">Žádné servery zatím nejsou v systému.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<script>
+function updateStatus(serverId, cell) {
+    fetch(`/admin/server/${serverId}/status`)
+        .then(r => r.json())
+        .then(data => {
+            const status = data.status === 'running' ? 'online' : 'offline';
+            cell.innerHTML = `<span class="status-badge ${status}">${status === 'online' ? 'Online' : 'Offline'}</span>`;
+        })
+        .catch(() => {
+            cell.innerHTML = '<span class="status-badge offline">Nedostupné</span>';
+        });
+}
+
+document.querySelectorAll('.start-server, .stop-server, .restart-server').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const serverId = this.dataset.id;
+        const action = this.classList.contains('start-server') ? 'start' : (this.classList.contains('stop-server') ? 'stop' : 'restart');
+        this.disabled = true;
+        fetch(`/admin/server/${serverId}/action`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({action: action})
+        }).then(() => location.reload());
+    });
+});
+
+document.querySelectorAll('tbody tr[data-id]').forEach(row => {
+    const cell = row.querySelector('.server-status-cell');
+    if (cell) {
+        updateStatus(row.dataset.id, cell);
+        setInterval(() => updateStatus(row.dataset.id, cell), 10000);
+    }
+});
+</script>
+{% endblock %}

@@ -30,6 +30,7 @@ class User(db.Model, UserMixin):
     # Servery, na kterých je uživatel adminem (M:N vztah)
     admin_of_servers = db.relationship('Server', secondary=server_admins, 
                                      backref='admins', lazy='dynamic')
+    is_superadmin = db.Column(db.Boolean, default=False)
 
     @property
     def is_active(self):
@@ -184,6 +185,7 @@ class Mod(db.Model):
 
     # vztah k serverům (M:N)
     servers = db.relationship("Server", secondary="server_mods", backref="mods", lazy="dynamic")
+    update_logs = db.relationship('ModUpdateLog', backref='mod', lazy='dynamic', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f"<Mod {self.name} v{self.version}>"
@@ -211,18 +213,18 @@ class ModConfig(db.Model):
 
 class ModUpdateLog(db.Model):
     __tablename__ = "mod_update_log"
-
+    
     id = db.Column(db.Integer, primary_key=True)
-    mod_id = db.Column(db.Integer, db.ForeignKey("mod.id"), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    action = db.Column(db.String(50))  # install/update/uninstall
+    mod_id = db.Column(db.Integer, db.ForeignKey('mod.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    action = db.Column(db.String(50))
     version_from = db.Column(db.String(50))
     version_to = db.Column(db.String(50))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)
-
-    mod = db.relationship("Mod", backref="update_logs")
-    user = db.relationship("User", backref="mod_actions")
+    
+    # Vztahy
+    user = db.relationship('User', backref='mod_actions')
 
 
 class ModPack(db.Model):
