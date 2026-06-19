@@ -147,6 +147,37 @@
             </div>
         </div>
 
+        <div id="server-properties-panel" class="server-properties-panel">
+            <div class="section-header" data-section="server-properties">
+                <h3><i class="fas fa-sliders"></i> Nastaveni serveru</h3>
+                <i class="fas fa-chevron-down toggle-icon"></i>
+            </div>
+            <div class="section-content collapsed" id="server-properties-content">
+                <div class="properties-panel-head">
+                    <div>
+                        <h4>server.properties</h4>
+                        <p>Zakladni nastaveni Minecraft serveru. Vetsina zmen se projevi az po restartu serveru.</p>
+                    </div>
+                    <div class="properties-actions">
+                        <button id="server-properties-reload" class="btn btn-secondary" type="button">
+                            <i class="fas fa-rotate"></i> Nacist znovu
+                        </button>
+                        <button id="server-properties-save" class="btn btn-primary" type="button">
+                            <i class="fas fa-save"></i> Ulozit nastaveni
+                        </button>
+                    </div>
+                </div>
+                <div id="server-properties-meta" class="properties-meta"></div>
+                <div id="server-properties-form" class="properties-form">
+                    <div class="properties-empty">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <strong>Nacitam nastaveni...</strong>
+                    </div>
+                </div>
+                <div id="server-properties-status" class="properties-status"></div>
+            </div>
+        </div>
+
         <div class="client-tools-section">
             <h3><i class="fas fa-toolbox"></i> Nástroje pro hráče</h3>
             <div id="client-tools-container"></div>
@@ -174,31 +205,31 @@
                             <!-- Textové nástroje -->
                             <div class="text-toolbar mb-2">
                                 <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
-                                    data-tag="bold" data-tooltip="Tučné">
+                                    data-tag="bold" title="Tu&#269;n&#233;" aria-label="Tu&#269;n&#233;" data-tooltip="Tučné">
                                     <i class="fas fa-bold"></i>
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
-                                    data-tag="italic" data-tooltip="Kurzíva">
+                                    data-tag="italic" title="Kurz&#237;va" aria-label="Kurz&#237;va" data-tooltip="Kurzíva">
                                     <i class="fas fa-italic"></i>
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
-                                    data-tag="underline" data-tooltip="Podtržení">
+                                    data-tag="underline" title="Podtr&#382;en&#237;" aria-label="Podtr&#382;en&#237;" data-tooltip="Podtržení">
                                     <i class="fas fa-underline"></i>
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
-                                    data-tag="code" data-tooltip="Kód">
+                                    data-tag="code" title="K&#243;d" aria-label="K&#243;d" data-tooltip="Kód">
                                     <i class="fas fa-code"></i>
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
-                                    data-tag="link" data-tooltip="Vložit odkaz">
+                                    data-tag="link" title="Vlo&#382;it odkaz" aria-label="Vlo&#382;it odkaz" data-tooltip="Vložit odkaz">
                                     <i class="fas fa-link"></i>
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
-                                    data-tag="list-ul" data-tooltip="Odrážky">
+                                    data-tag="list-ul" title="Odr&#225;&#382;ky" aria-label="Odr&#225;&#382;ky" data-tooltip="Odrážky">
                                     <i class="fas fa-list-ul"></i>
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn"
-                                    data-tag="list-ol" data-tooltip="Číslovaný seznam">
+                                    data-tag="list-ol" title="&#268;&#237;slovan&#253; seznam" aria-label="&#268;&#237;slovan&#253; seznam" data-tooltip="Číslovaný seznam">
                                     <i class="fas fa-list-ol"></i>
                                 </button>
                             </div>
@@ -321,11 +352,13 @@
                     <i class="fas fa-plus"></i> Vygenerovat nový kód
                 </button>
                 <div class="form-inline">
-                    <label>Platnost (hodiny):</label>
-                    <input type="number" id="expires-hours" class="form-control form-control-sm" value="24" min="1">
-                    <label>Max použití:</label>
+                    <label for="expires-hours">Platnost (hodiny):</label>
+                    <input type="number" id="expires-hours" class="form-control form-control-sm" value="24" min="1"
+                        title="Platnost k&#243;du v hodin&#225;ch" aria-label="Platnost k&#243;du v hodin&#225;ch">
+                    <label for="max-uses">Max použití:</label>
                     <input type="number" id="max-uses" class="form-control form-control-sm" placeholder="Neomezeně"
-                        min="1">
+                        min="1" title="Maxim&#225;ln&#237; po&#269;et pou&#382;it&#237; k&#243;du"
+                        aria-label="Maxim&#225;ln&#237; po&#269;et pou&#382;it&#237; k&#243;du">
                 </div>
             </div>
 

@@ -25,7 +25,7 @@
 
       <a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Odhlásit</a>
       {% if current_user.is_authenticated and current_user.is_superadmin %}
-      <li><a href="{{ url_for('admin.index') }}"><i class="fas fa-crown"></i> Admin</a></li>
+      <a href="{{ url_for('admin.index') }}"><i class="fas fa-crown"></i> Admin</a>
       {% endif %}
       {% else %}
       <a href="{{ url_for('index') }}#cenik"><i class="fas fa-tags"></i> Ceník</a>

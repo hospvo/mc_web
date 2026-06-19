@@ -14,6 +14,7 @@ export const API_ENDPOINTS = {
     SERVER_ADMINS_REMOVE: '/api/server/admins/remove',
     SERVER_BACKUPS: '/api/server/backups',
     SERVER_DISK_USAGE: '/api/server/disk-usage',
+    SERVER_PROPERTIES: '/api/server/properties',
     NOTICES: '/api/notices',
     NOTICES_CREATE: '/api/notices/create',
     NOTICES_UPDATE: '/api/notices/update',

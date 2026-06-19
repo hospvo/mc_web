@@ -8,7 +8,7 @@ import signal
 from datetime import datetime, timedelta
 import time
 import threading
-from flask import Blueprint, request, jsonify, current_app, abort, send_file
+from flask import Blueprint, request, jsonify, current_app, abort, send_file, redirect
 from flask_login import login_required, current_user
 from models import db, User, Plugin, Server, PluginConfig, PluginUpdateLog, server_plugins, PlayerAccessCode, PlayerServerAccess, PlayerNotice,  Mod, ModPack
 from plugin_instaler_modrinth import extract_slug_from_url, get_modrinth_plugin_info, get_download_url, handle_web_request
@@ -50,6 +50,137 @@ def get_server_paths(server_id):
         'backup_path': os.path.join(server_dir, "mcbackups"),
         'server_jar': f"server_{server_id}.jar"  # UnikĂˇtnĂ­ nĂˇzev podle server_id
     }
+
+
+SERVER_PROPERTIES_FIELDS = {
+    "motd": {"type": "text", "default": "Minecraft Server"},
+    "gamemode": {"type": "select", "choices": ["survival", "creative", "adventure", "spectator"], "default": "survival"},
+    "difficulty": {"type": "select", "choices": ["peaceful", "easy", "normal", "hard"], "default": "easy"},
+    "max-players": {"type": "int", "min": 1, "max": 500, "default": "20"},
+    "view-distance": {"type": "int", "min": 2, "max": 32, "default": "10"},
+    "simulation-distance": {"type": "int", "min": 2, "max": 32, "default": "10"},
+    "spawn-protection": {"type": "int", "min": 0, "max": 64, "default": "16"},
+    "player-idle-timeout": {"type": "int", "min": 0, "max": 1440, "default": "0"},
+    "pvp": {"type": "bool", "default": "true"},
+    "online-mode": {"type": "bool", "default": "true"},
+    "white-list": {"type": "bool", "default": "false"},
+    "enforce-whitelist": {"type": "bool", "default": "false"},
+    "allow-flight": {"type": "bool", "default": "false"},
+    "enable-command-block": {"type": "bool", "default": "false"},
+    "force-gamemode": {"type": "bool", "default": "false"},
+    "hardcore": {"type": "bool", "default": "false"},
+    "level-seed": {"type": "text", "default": ""},
+    "level-name": {"type": "text", "default": "world"},
+}
+
+
+def user_can_manage_server(server):
+    return (
+        server.owner_id == current_user.id
+        or current_user in server.admins
+        or getattr(current_user, "is_superadmin", False)
+    )
+
+
+def get_server_properties_path(server_id):
+    paths = get_server_paths(server_id)
+    if not paths:
+        return None
+
+    server_path = os.path.abspath(paths["server_path"])
+    properties_path = os.path.abspath(os.path.join(server_path, "server.properties"))
+    if os.path.commonpath([server_path, properties_path]) != server_path:
+        return None
+    return properties_path
+
+
+def parse_server_properties_file(properties_path):
+    properties = {}
+    if not os.path.exists(properties_path):
+        return properties
+
+    with open(properties_path, "r", encoding="utf-8", errors="replace") as prop_file:
+        for raw_line in prop_file:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            properties[key.strip()] = value.strip()
+    return properties
+
+
+def normalize_property_value(key, value):
+    spec = SERVER_PROPERTIES_FIELDS[key]
+    prop_type = spec["type"]
+
+    if prop_type == "bool":
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        normalized = str(value).strip().lower()
+        if normalized not in {"true", "false"}:
+            raise ValueError(f"Neplatna hodnota pro {key}")
+        return normalized
+
+    if prop_type == "int":
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{key} musi byt cislo")
+        if number < spec["min"] or number > spec["max"]:
+            raise ValueError(f"{key} musi byt mezi {spec['min']} a {spec['max']}")
+        return str(number)
+
+    if prop_type == "select":
+        normalized = str(value).strip().lower()
+        if normalized not in spec["choices"]:
+            raise ValueError(f"Neplatna hodnota pro {key}")
+        return normalized
+
+    normalized = str(value).replace("\r", " ").replace("\n", " ").strip()
+    if key == "motd" and len(normalized) > 120:
+        raise ValueError("MOTD muze mit maximalne 120 znaku")
+    if len(normalized) > 300:
+        raise ValueError(f"{key} je prilis dlouhe")
+    return normalized
+
+
+def write_server_properties_file(properties_path, updates):
+    os.makedirs(os.path.dirname(properties_path), exist_ok=True)
+    lines = []
+    if os.path.exists(properties_path):
+        with open(properties_path, "r", encoding="utf-8", errors="replace") as prop_file:
+            lines = prop_file.readlines()
+
+        backup_path = properties_path + ".bak"
+        try:
+            shutil.copy2(properties_path, backup_path)
+        except OSError as exc:
+            print(f"[WARN] Nepodarilo se vytvorit zalohu server.properties: {exc}")
+    else:
+        lines = ["#Minecraft server properties\n"]
+
+    remaining = dict(updates)
+    new_lines = []
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in remaining:
+                new_lines.append(f"{key}={remaining.pop(key)}\n")
+                continue
+        new_lines.append(raw_line if raw_line.endswith("\n") else raw_line + "\n")
+
+    if remaining:
+        if new_lines and new_lines[-1].strip():
+            new_lines.append("\n")
+        for key in SERVER_PROPERTIES_FIELDS:
+            if key in remaining:
+                new_lines.append(f"{key}={remaining[key]}\n")
+
+    temp_path = properties_path + ".tmp"
+    with open(temp_path, "w", encoding="utf-8", newline="") as prop_file:
+        prop_file.writelines(new_lines)
+    os.replace(temp_path, properties_path)
 
 
 class ServerInstance:
@@ -1365,6 +1496,89 @@ def disk_usage_api():
         return jsonify({'error': 'Server not found'}), 404
     return jsonify(usage)
 
+
+@server_api.route('/api/server/properties', methods=['GET'])
+@login_required
+def get_server_properties_api():
+    server_id = request.args.get('server_id', type=int)
+    if not server_id:
+        return jsonify({'error': 'Missing server_id'}), 400
+
+    server = Server.query.get_or_404(server_id)
+    if not user_can_manage_server(server):
+        abort(403)
+
+    properties_path = get_server_properties_path(server_id)
+    if not properties_path:
+        return jsonify({'error': 'Server path not found'}), 404
+
+    if not os.path.exists(properties_path):
+        return jsonify({
+            'success': False,
+            'exists': False,
+            'error': 'server.properties nebyl nalezen',
+            'path': properties_path,
+            'fields': SERVER_PROPERTIES_FIELDS,
+            'properties': {}
+        }), 404
+
+    properties = parse_server_properties_file(properties_path)
+    editable = {
+        key: properties.get(key, spec.get("default", ""))
+        for key, spec in SERVER_PROPERTIES_FIELDS.items()
+    }
+
+    return jsonify({
+        'success': True,
+        'exists': True,
+        'path': properties_path,
+        'fields': SERVER_PROPERTIES_FIELDS,
+        'properties': editable,
+        'updated_at': datetime.fromtimestamp(os.path.getmtime(properties_path)).strftime('%d.%m.%Y %H:%M')
+    })
+
+
+@server_api.route('/api/server/properties', methods=['POST'])
+@login_required
+def update_server_properties_api():
+    data = request.get_json() or {}
+    server_id = data.get('server_id')
+    if not server_id:
+        return jsonify({'success': False, 'error': 'Missing server_id'}), 400
+
+    server = Server.query.get_or_404(server_id)
+    if not user_can_manage_server(server):
+        abort(403)
+
+    raw_properties = data.get('properties') or {}
+    updates = {}
+    try:
+        for key, value in raw_properties.items():
+            if key not in SERVER_PROPERTIES_FIELDS:
+                continue
+            updates[key] = normalize_property_value(key, value)
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+
+    if not updates:
+        return jsonify({'success': False, 'error': 'Zadne podporovane nastaveni k ulozeni'}), 400
+
+    properties_path = get_server_properties_path(server_id)
+    if not properties_path:
+        return jsonify({'success': False, 'error': 'Server path not found'}), 404
+
+    try:
+        write_server_properties_file(properties_path, updates)
+    except OSError as exc:
+        return jsonify({'success': False, 'error': f'Nepodarilo se ulozit server.properties: {exc}'}), 500
+
+    return jsonify({
+        'success': True,
+        'message': 'server.properties ulozen',
+        'properties': parse_server_properties_file(properties_path),
+        'path': properties_path
+    })
+
 @server_api.route('/api/server/admins', methods=['GET'])
 @login_required
 def get_server_admins():
@@ -1994,9 +2208,7 @@ def player_download_client_pack():
     if not is_mod_server(server):
         return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
-    # Zde zavolej funkci pro vytvoĹ™enĂ­/stĂˇhnutĂ­ client packu
-    # ProzatĂ­m vrĂˇtĂ­me chybu - tuto funkci budeĹˇ muset implementovat
-    return jsonify({'error': 'Client pack download not implemented yet'}), 501
+    return redirect(f"/api/mods/client-pack/download?server_id={server_id}")
 
 @server_api.route('/api/player/modpacks/list')
 @login_required

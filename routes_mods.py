@@ -1,4 +1,4 @@
-import os
+﻿import os
 import shutil
 import requests
 import json
@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import tempfile
 import zipfile
 
-from models import db, Server, Mod, ModConfig, ModUpdateLog, server_mods, ModPack, mod_pack_mods
+from models import db, Server, Mod, ModConfig, ModUpdateLog, server_mods, ModPack, mod_pack_mods, PlayerServerAccess
 from mc_server import BASE_MODS_PATH, BASE_SERVERS_PATH
 
 # Blueprint
@@ -17,7 +17,7 @@ BASE_MODPACKS_PATH = r"C:\Users\hospv\Documents\minecraft_mods\data\modpacks"
 mods_api = Blueprint("mods_api", __name__)
 
 def is_mod_server(server: Server) -> bool:
-    """Ověří, že server podporuje módy"""
+    """OvÄ›Ĺ™Ă­, Ĺľe server podporuje mĂłdy"""
     if not server.build_version or not server.build_version.build_type:
         return False
     
@@ -30,71 +30,83 @@ def is_mod_server(server: Server) -> bool:
     return build_type in mod_builds
 
 def get_server_loader(server: Server) -> str:
-    """Vrátí loader serveru v lowercase (fabric, forge, neoforge, etc.)"""
+    """VrĂˇtĂ­ loader serveru v lowercase (fabric, forge, neoforge, etc.)"""
     if not server.build_version or not server.build_version.build_type:
         return None
     return server.build_version.build_type.name.lower()
 
-# ---- Pomocné funkce pro Modrinth ----
+def user_can_manage_server(server: Server) -> bool:
+    return server.owner_id == current_user.id or current_user in server.admins
+
+def user_can_download_server_content(server: Server) -> bool:
+    if user_can_manage_server(server):
+        return True
+
+    return PlayerServerAccess.query.filter_by(
+        user_id=current_user.id,
+        server_id=server.id
+    ).first() is not None
+
+# ---- PomocnĂ© funkce pro Modrinth ----
 
 def extract_modrinth_slug(url):
-    """Vrátí slug z URL typu https://modrinth.com/mod/<slug> nebo /plugin/<slug>"""
+    """VrĂˇtĂ­ slug z URL typu https://modrinth.com/mod/<slug> nebo /plugin/<slug>"""
     try:
         parsed = urlparse(url)
         parts = parsed.path.strip("/").split("/")
         
         if len(parts) < 2:
-            raise ValueError("Neplatná Modrinth URL - očekáváno https://modrinth.com/mod/<nazev> nebo /plugin/<nazev>")
+            raise ValueError("NeplatnĂˇ Modrinth URL - oÄŤekĂˇvĂˇno https://modrinth.com/mod/<nazev> nebo /plugin/<nazev>")
         
         project_type = parts[0]  # 'mod' nebo 'plugin'
         slug = parts[1]
         
         valid_types = ['mod', 'plugin', 'resourcepack', 'datapack', 'modpack', 'shader']
         if project_type not in valid_types:
-            raise ValueError(f"Neplatný typ projektu Modrinth: {project_type}. Očekáváno: {', '.join(valid_types)}")
+            raise ValueError(f"NeplatnĂ˝ typ projektu Modrinth: {project_type}. OÄŤekĂˇvĂˇno: {', '.join(valid_types)}")
         
         return slug, project_type
         
     except Exception as e:
-        raise ValueError(f"Chyba při parsování URL: {e}")
+        raise ValueError(f"Chyba pĹ™i parsovĂˇnĂ­ URL: {e}")
 
 def get_modrinth_info(slug):
-    """Vrátí detailní info o projektu z Modrinthu - funguje pro mody i pluginy."""
+    """VrĂˇtĂ­ detailnĂ­ info o projektu z Modrinthu - funguje pro mody i pluginy."""
     try:
         headers = {
             'User-Agent': 'MinecraftServerManager/1.0 (https://github.com/your-repo)',
             'Accept': 'application/json'
         }
         
-        # 1️⃣ Získáme základní info o projektu
+        # 1ď¸ŹâŁ ZĂ­skĂˇme zĂˇkladnĂ­ info o projektu
         project_url = f"https://api.modrinth.com/v2/project/{slug}"
         project_response = requests.get(project_url, headers=headers, timeout=10)
         
         if project_response.status_code == 404:
             raise ValueError(f"Projekt '{slug}' nebyl nalezen na Modrinth")
         elif project_response.status_code != 200:
-            raise ValueError(f"Modrinth API vrátilo chybu: {project_response.status_code}")
+            raise ValueError(f"Modrinth API vrĂˇtilo chybu: {project_response.status_code}")
             
         project = project_response.json()
         
-        # 2️⃣ Získáme verze projektu
+        # 2ď¸ŹâŁ ZĂ­skĂˇme verze projektu
         versions_url = f"https://api.modrinth.com/v2/project/{slug}/version"
         versions_response = requests.get(versions_url, headers=headers, timeout=10)
         if versions_response.status_code != 200:
-            raise ValueError(f"Chyba při načítání verzí: {versions_response.status_code}")
+            raise ValueError(f"Chyba pĹ™i naÄŤĂ­tĂˇnĂ­ verzĂ­: {versions_response.status_code}")
         versions = versions_response.json()
         
-        # 3️⃣ Získáme informace o týmu
+        # 3ď¸ŹâŁ ZĂ­skĂˇme informace o tĂ˝mu
         team_url = f"https://api.modrinth.com/v2/project/{slug}/members"
         team_response = requests.get(team_url, headers=headers, timeout=10)
         team = team_response.json() if team_response.status_code == 200 else []
 
-        # 4️⃣ Načteme typ projektu + client/server side metadata
+        # 4ď¸ŹâŁ NaÄŤteme typ projektu + client/server side metadata
         project_type = project.get("project_type", "mod")
-        client_side = project.get("client_side", "optional")   # <- přidáno
-        server_side = project.get("server_side", "required")   # <- přidáno
+        client_side = project.get("client_side", "optional")   # <- pĹ™idĂˇno
+        server_side = project.get("server_side", "required")   # <- pĹ™idĂˇno
 
-        # 5️⃣ Detekce plugin kompatibility
+        # 5ď¸ŹâŁ Detekce plugin kompatibility
         can_be_plugin = False
         all_loaders = set()
         plugin_loaders = {'bukkit', 'spigot', 'paper', 'purpur', 'folia', 'sponge'}
@@ -105,7 +117,7 @@ def get_modrinth_info(slug):
             if any(loader in plugin_loaders for loader in version_loaders):
                 can_be_plugin = True
 
-        # 6️⃣ Vrátíme rozšířené informace
+        # 6ď¸ŹâŁ VrĂˇtĂ­me rozĹˇĂ­Ĺ™enĂ© informace
         return {
             "project": project,
             "versions": versions,
@@ -113,24 +125,24 @@ def get_modrinth_info(slug):
             "project_type": project_type,
             "can_be_plugin": can_be_plugin,
             "all_loaders": list(all_loaders),
-            "client_side": client_side,    # <- nové pole
-            "server_side": server_side     # <- nové pole
+            "client_side": client_side,    # <- novĂ© pole
+            "server_side": server_side     # <- novĂ© pole
         }
         
     except requests.exceptions.Timeout:
-        raise ValueError("Timeout při komunikaci s Modrinth API")
+        raise ValueError("Timeout pĹ™i komunikaci s Modrinth API")
     except requests.exceptions.ConnectionError:
-        raise ValueError("Chyba připojení k Modrinth API")
+        raise ValueError("Chyba pĹ™ipojenĂ­ k Modrinth API")
     except requests.exceptions.RequestException as e:
         raise ValueError(f"Chyba HTTP: {e}")
     except json.JSONDecodeError as e:
-        raise ValueError(f"Neplatná odpověď z Modrinth API: {e}")
+        raise ValueError(f"NeplatnĂˇ odpovÄ›ÄŹ z Modrinth API: {e}")
     except Exception as e:
-        raise ValueError(f"Neočekávaná chyba: {e}")
+        raise ValueError(f"NeoÄŤekĂˇvanĂˇ chyba: {e}")
 
 
 def pick_best_version(versions, preferred_loader=None, preferred_mc_version=None):
-    """Vybere nejlepší verzi modu podle loaderu a MC verze."""
+    """Vybere nejlepĹˇĂ­ verzi modu podle loaderu a MC verze."""
     if not versions:
         return None
     
@@ -154,7 +166,7 @@ def pick_best_version(versions, preferred_loader=None, preferred_mc_version=None
         if preferred_mc_version and preferred_mc_version in mc_versions:
             return version
     
-    # 4. Nejnovější verze (podle data publikování)
+    # 4. NejnovÄ›jĹˇĂ­ verze (podle data publikovĂˇnĂ­)
     try:
         return sorted(versions, key=lambda v: v.get("date_published", ""), reverse=True)[0]
     except:
@@ -169,12 +181,12 @@ def get_installed_mods():
 
     server = Server.query.get_or_404(server_id)
 
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
     if not is_mod_server(server):
-        return jsonify({"error": "Server nepodporuje módy"}), 400
+        return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
     mods = []
     for mod in server.mods:
@@ -200,18 +212,18 @@ def get_available_mods():
     category = request.args.get("category", "all")
     server_id = request.args.get("server_id", type=int)
 
-    # POVINNÉ - musíme mít server_id pro filtrování
+    # POVINNĂ‰ - musĂ­me mĂ­t server_id pro filtrovĂˇnĂ­
     if not server_id:
         return jsonify({"error": "Missing server_id"}), 400
 
     server = Server.query.get_or_404(server_id)
     
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
     if not is_mod_server(server):
-        return jsonify({"error": "Server nepodporuje módy"}), 400
+        return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
     server_loader = get_server_loader(server)
     server_mc_version = server.build_version.mc_version if server.build_version else None
@@ -230,10 +242,10 @@ def get_available_mods():
 
     all_mods = query.all()
     
-    # FILTROVÁNÍ pouze kompatibilních projektů (modů i pluginů s mod loader support)
+    # FILTROVĂNĂŤ pouze kompatibilnĂ­ch projektĹŻ (modĹŻ i pluginĹŻ s mod loader support)
     compatible_mods = []
     for mod in all_mods:
-        # Pokud mod nemá metadata, přeskočíme ho
+        # Pokud mod nemĂˇ metadata, pĹ™eskoÄŤĂ­me ho
         if not mod.supported_loaders or not mod.minecraft_versions:
             continue
             
@@ -241,21 +253,21 @@ def get_available_mods():
             supported_loaders = json.loads(mod.supported_loaders) if mod.supported_loaders else []
             supported_mc_versions = json.loads(mod.minecraft_versions) if mod.minecraft_versions else []
             
-            # Kontrola kompatibility - mod musí podporovat loader serveru
+            # Kontrola kompatibility - mod musĂ­ podporovat loader serveru
             loader_compatible = server_loader in supported_loaders
             
             # Kontrola kompatibility MC verze
             mc_compatible = not server_mc_version or server_mc_version in supported_mc_versions
             
-            # ROZŠÍŘENÍ: Projekty, které projdou oběma kontrolami, jsou kompatibilní
+            # ROZĹ ĂŤĹENĂŤ: Projekty, kterĂ© projdou obÄ›ma kontrolami, jsou kompatibilnĂ­
             if loader_compatible and mc_compatible:
                 compatible_mods.append(mod)
                 
         except json.JSONDecodeError:
-            # Pokud JSON není validní, přeskočíme mod
+            # Pokud JSON nenĂ­ validnĂ­, pĹ™eskoÄŤĂ­me mod
             continue
 
-    # Vrátíme seznam kompatibilních projektů s rozšířenými metadaty
+    # VrĂˇtĂ­me seznam kompatibilnĂ­ch projektĹŻ s rozĹˇĂ­Ĺ™enĂ˝mi metadaty
     return jsonify([{
         "id": m.id,
         "name": m.name,
@@ -268,7 +280,7 @@ def get_available_mods():
         "minecraft_version": m.minecraft_version,
         "supported_loaders": json.loads(m.supported_loaders) if m.supported_loaders else [],
         "minecraft_versions": json.loads(m.minecraft_versions) if m.minecraft_versions else [],
-        # NOVÁ ROZŠÍŘENÍ PRO HYBRIDNÍ PROJEKTY:
+        # NOVĂ ROZĹ ĂŤĹENĂŤ PRO HYBRIDNĂŤ PROJEKTY:
         "project_type": m.project_type or "mod",  # mod, plugin, resourcepack, etc.
         "can_be_plugin": m.can_be_plugin if m.can_be_plugin is not None else False,
         "is_hybrid": m.can_be_plugin and (m.project_type == "plugin" or m.project_type is None),
@@ -289,12 +301,12 @@ def install_mod():
     server = Server.query.get_or_404(server_id)
     mod = Mod.query.get_or_404(mod_id)
 
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
     if not is_mod_server(server):
-        return jsonify({"error": "Server nepodporuje módy"}), 400
+        return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
     # Kontrola kompatibility
     server_loader = get_server_loader(server)
@@ -318,7 +330,7 @@ def install_mod():
         return jsonify({"error": "Mod already installed"}), 400
 
     try:
-        # Cesta k mods složce serveru
+        # Cesta k mods sloĹľce serveru
         server_mods_dir = os.path.join(BASE_SERVERS_PATH, server.name, "minecraft-server", "mods")
         os.makedirs(server_mods_dir, exist_ok=True)
 
@@ -368,7 +380,7 @@ def uninstall_mod():
         abort(403)
 
     if not is_mod_server(server):
-        return jsonify({"error": "Server nepodporuje módy"}), 400
+        return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
     if mod not in server.mods:
         return jsonify({"error": "Mod not installed"}), 400
@@ -415,11 +427,11 @@ def check_mod_updates():
         abort(403)
 
     if not is_mod_server(server):
-        return jsonify({"error": "Server nepodporuje módy"}), 400
+        return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
     updates = []
     for mod in server.mods:
-        # TODO: implementace Modrinth API pro kontrolu aktualizací
+        # TODO: implementace Modrinth API pro kontrolu aktualizacĂ­
         updates.append({
             "mod_id": mod.id,
             "name": mod.display_name or mod.name,
@@ -431,7 +443,7 @@ def check_mod_updates():
     return jsonify(updates)
 
 @mods_api.route("/api/mods/install-from-url", methods=["POST"])
-@login_required  # PŘIDAT - chybějící dekorátor
+@login_required  # PĹIDAT - chybÄ›jĂ­cĂ­ dekorĂˇtor
 def install_mod_from_url():
     if not request.is_json:
         return jsonify({"success": False, "error": "Request must be JSON"}), 400
@@ -442,21 +454,21 @@ def install_mod_from_url():
     server_id = data.get("server_id")
 
     if not url or not download_url or not server_id:
-        return jsonify({"success": False, "error": "Chybí parametry"}), 400
+        return jsonify({"success": False, "error": "ChybĂ­ parametry"}), 400
 
     server = Server.query.get_or_404(server_id)
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
     if not is_mod_server(server):
-        return jsonify({"error": "Server nepodporuje módy"}), 400
+        return jsonify({"error": "Server nepodporuje mĂłdy"}), 400
 
     try:
-        # Získání informací o projektu
+        # ZĂ­skĂˇnĂ­ informacĂ­ o projektu
         slug, project_type = extract_modrinth_slug(url)
         info = get_modrinth_info(slug)
         
-        # Najdeme konkrétní verzi podle download URL
+        # Najdeme konkrĂ©tnĂ­ verzi podle download URL
         selected_version = None
         for version in info["versions"]:
             for file in version.get("files", []):
@@ -467,25 +479,25 @@ def install_mod_from_url():
                 break
 
         if not selected_version:
-            return jsonify({"success": False, "error": "Nepodařilo se najít informace o verzi"}), 400
+            return jsonify({"success": False, "error": "NepodaĹ™ilo se najĂ­t informace o verzi"}), 400
 
-        # Příprava metadat PRO KONTROLU DUPLICITY
+        # PĹ™Ă­prava metadat PRO KONTROLU DUPLICITY
         loaders = selected_version.get("loaders", [])
         game_versions = selected_version.get("game_versions", [])
         primary_loader = loaders[0] if loaders else "unknown"
         primary_mc_version = game_versions[0] if game_versions else "unknown"
         version_number = selected_version.get("version_number", "unknown")
 
-        # === KONTROLA DUPLICITY PŘED STAŽENÍM SOUBORU ===
+        # === KONTROLA DUPLICITY PĹED STAĹ˝ENĂŤM SOUBORU ===
         existing_mod = Mod.query.filter_by(
             name=slug,
             minecraft_version=primary_mc_version,
             loader=primary_loader
         ).first()
 
-        # Pokud mod již existuje
+        # Pokud mod jiĹľ existuje
         if existing_mod:
-            # Kontrola, zda je již nainstalován na tomto serveru
+            # Kontrola, zda je jiĹľ nainstalovĂˇn na tomto serveru
             existing_link = db.session.execute(
                 server_mods.select().where(
                     (server_mods.c.server_id == server.id) &
@@ -494,7 +506,7 @@ def install_mod_from_url():
             ).first()
 
             if not existing_link:
-                # Přidat vztah server-mod
+                # PĹ™idat vztah server-mod
                 db.session.execute(
                     server_mods.insert().values(
                         server_id=server.id,
@@ -507,27 +519,27 @@ def install_mod_from_url():
 
                 return jsonify({
                     "success": True,
-                    "message": f"Mod {existing_mod.display_name} byl přidán na server {server.name} (již byl v systému).",
+                    "message": f"Mod {existing_mod.display_name} byl pĹ™idĂˇn na server {server.name} (jiĹľ byl v systĂ©mu).",
                     "mod_exists": True,
                     "mod_id": existing_mod.id
                 })
 
-            # Mod je již nainstalován na tomto serveru
+            # Mod je jiĹľ nainstalovĂˇn na tomto serveru
             return jsonify({
                 "success": False,
                 "mod_exists": True,
                 "mod_name": existing_mod.display_name or existing_mod.name,
                 "mod_id": existing_mod.id,
-                "error": f"Mod {existing_mod.display_name or slug} je již nainstalován na tomto serveru."
+                "error": f"Mod {existing_mod.display_name or slug} je jiĹľ nainstalovĂˇn na tomto serveru."
             }), 409
 
-        # === STAŽENÍ SOUBORU (pouze pokud mod neexistuje) ===
+        # === STAĹ˝ENĂŤ SOUBORU (pouze pokud mod neexistuje) ===
         r = requests.get(download_url, timeout=15, stream=True)
         r.raise_for_status()
 
         filename = os.path.basename(download_url)
         
-        # Uložení do centrálního úložiště
+        # UloĹľenĂ­ do centrĂˇlnĂ­ho ĂşloĹľiĹˇtÄ›
         central_path = os.path.join(BASE_MODS_PATH, "mods", "core", filename)
         os.makedirs(os.path.dirname(central_path), exist_ok=True)
 
@@ -536,7 +548,7 @@ def install_mod_from_url():
                 if chunk:
                     f.write(chunk)
 
-        # === VYTVOŘENÍ NOVÉHO ZÁZNAMU MODU ===
+        # === VYTVOĹENĂŤ NOVĂ‰HO ZĂZNAMU MODU ===
         mod = Mod(
             name=slug,
             display_name=info["project"].get("title") or slug,
@@ -558,7 +570,7 @@ def install_mod_from_url():
             updated_at=datetime.utcnow(),
         )
         db.session.add(mod)
-        db.session.flush()  # Získat ID bez commit
+        db.session.flush()  # ZĂ­skat ID bez commit
 
         # === INSTALACE NA SERVER ===
         server_mods_dir = os.path.join(BASE_SERVERS_PATH, server.name, "minecraft-server", "mods")
@@ -566,7 +578,7 @@ def install_mod_from_url():
         dest_path = os.path.join(server_mods_dir, filename)
         shutil.copy2(central_path, dest_path)
 
-        # Přidat vztah server-mod
+        # PĹ™idat vztah server-mod
         db.session.execute(
             server_mods.insert().values(
                 server_id=server.id,
@@ -576,7 +588,7 @@ def install_mod_from_url():
             )
         )
 
-        # === LOGOVÁNÍ INSTALACE ===
+        # === LOGOVĂNĂŤ INSTALACE ===
         log_entry = ModUpdateLog(
             mod_id=mod.id,
             user_id=current_user.id,
@@ -590,17 +602,17 @@ def install_mod_from_url():
 
         return jsonify({
             "success": True,
-            "message": f"{info['project_type'].title()} {mod.display_name} byl nainstalován na server {server.name}",
+            "message": f"{info['project_type'].title()} {mod.display_name} byl nainstalovĂˇn na server {server.name}",
             "project_type": info["project_type"],
             "mod_id": mod.id
         })
 
     except requests.exceptions.RequestException as e:
         db.session.rollback()
-        return jsonify({"success": False, "error": f"Chyba při stahování souboru: {str(e)}"}), 500
+        return jsonify({"success": False, "error": f"Chyba pĹ™i stahovĂˇnĂ­ souboru: {str(e)}"}), 500
     except Exception as e:
         db.session.rollback()
-        # Smazat stažený soubor, pokud instalace selhala
+        # Smazat staĹľenĂ˝ soubor, pokud instalace selhala
         try:
             if 'central_path' in locals() and os.path.exists(central_path):
                 os.remove(central_path)
@@ -616,14 +628,14 @@ def get_mod_download_info():
     server_id = data.get("server_id")
 
     if not url:
-        return jsonify({"success": False, "error": "Chybí URL"}), 400
+        return jsonify({"success": False, "error": "ChybĂ­ URL"}), 400
 
     try:
         # Extrahujeme slug a typ projektu
         slug, project_type = extract_modrinth_slug(url)
         info = get_modrinth_info(slug)
 
-        # Najdeme nejlepší verzi podle serveru
+        # Najdeme nejlepĹˇĂ­ verzi podle serveru
         preferred_loader, preferred_version = None, None
         compatible, reason = True, ""
 
@@ -638,10 +650,10 @@ def get_mod_download_info():
         if not best_version:
             return jsonify({
                 "success": False, 
-                "error": f"Nenalezena kompatibilní verze pro {preferred_loader} {preferred_version}"
+                "error": f"Nenalezena kompatibilnĂ­ verze pro {preferred_loader} {preferred_version}"
             }), 404
 
-        # Najdeme primární soubor
+        # Najdeme primĂˇrnĂ­ soubor
         primary_file = None
         for file in best_version.get("files", []):
             if file.get("primary", False):
@@ -651,7 +663,7 @@ def get_mod_download_info():
             primary_file = best_version["files"][0]
             
         if not primary_file:
-            return jsonify({"success": False, "error": "Žádný soubor k stažení"}), 404
+            return jsonify({"success": False, "error": "Ĺ˝ĂˇdnĂ˝ soubor k staĹľenĂ­"}), 404
 
         download_url = primary_file["url"]
         loaders = best_version.get("loaders", [])
@@ -660,10 +672,10 @@ def get_mod_download_info():
         # Kontrola kompatibility
         if preferred_loader and preferred_loader not in loaders:
             compatible = False
-            reason = f"Mod nepodporuje loader '{preferred_loader}'. Dostupné: {', '.join(loaders)}"
+            reason = f"Mod nepodporuje loader '{preferred_loader}'. DostupnĂ©: {', '.join(loaders)}"
         elif preferred_version and preferred_version not in mc_versions:
             compatible = False
-            reason = f"Mod nepodporuje Minecraft verzi '{preferred_version}'. Dostupné: {', '.join(mc_versions)}"
+            reason = f"Mod nepodporuje Minecraft verzi '{preferred_version}'. DostupnĂ©: {', '.join(mc_versions)}"
 
         return jsonify({
             "success": True,
@@ -689,7 +701,7 @@ def get_mod_download_info():
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": f"Neočekávaná chyba: {str(e)}"}), 500
+        return jsonify({"success": False, "error": f"NeoÄŤekĂˇvanĂˇ chyba: {str(e)}"}), 500
 
 @mods_api.route("/api/mods/client-pack/download")
 @login_required
@@ -699,36 +711,37 @@ def download_client_pack():
         return jsonify({"error": "Missing server_id"}), 400
 
     server = Server.query.get_or_404(server_id)
-    if server.owner_id != current_user.id and current_user not in server.admins:
+    if not user_can_download_server_content(server):
         abort(403)
 
-    # ZÍSKÁNÍ MODŮ - opravená verze
+    # ZĂŤSKĂNĂŤ MODĹ® - opravenĂˇ verze
     client_mods = []
-    used_filenames = set()  # Sledování použitých názvů souborů
+    used_filenames = set()  # SledovĂˇnĂ­ pouĹľitĂ˝ch nĂˇzvĹŻ souborĹŻ
     
     for mod in server.mods:
-        if not hasattr(mod, 'client_side') or mod.client_side in [None, 'unknown']:
+        if getattr(mod, 'client_side', None) == 'unsupported':
             continue
-            
-        if mod.client_side in ["required", "recommended"] and mod.client_side != "unsupported":
-            if os.path.exists(mod.file_path):
-                filename = os.path.basename(mod.file_path)
-                
-                # Kontrola duplicit
-                if filename in used_filenames:
-                    print(f"Varování: Duplicitní soubor {filename} - přeskočen")
-                    continue
-                    
-                used_filenames.add(filename)
-                client_mods.append({
-                    "file_path": mod.file_path,
-                    "filename": filename
-                })
+
+        if not mod.file_path or not os.path.exists(mod.file_path):
+            continue
+
+        filename = os.path.basename(mod.file_path)
+
+        # Kontrola duplicit
+        if filename in used_filenames:
+            print(f"Duplicate client mod file skipped: {filename}")
+            continue
+
+        used_filenames.add(filename)
+        client_mods.append({
+            "file_path": mod.file_path,
+            "filename": filename
+        })
 
     if not client_mods:
-        return jsonify({"error": "Žádné módy vyžadované klientem nebyly nalezeny"}), 404
+        return jsonify({"error": "No client mod files were found for this server"}), 404
 
-    # Vytvoření ZIPu
+    # VytvoĹ™enĂ­ ZIPu
     zip_dir = tempfile.mkdtemp()
     zip_path = os.path.join(zip_dir, f"client_modpack_{server.id}.zip")
 
@@ -737,33 +750,33 @@ def download_client_pack():
             for mod in client_mods:
                 zf.write(mod["file_path"], mod["filename"])
         
-        # LEPŠÍ ŘEŠENÍ PRO MAZÁNÍ - počkáme na dokončení odesílání
+        # LEPĹ ĂŤ ĹEĹ ENĂŤ PRO MAZĂNĂŤ - poÄŤkĂˇme na dokonÄŤenĂ­ odesĂ­lĂˇnĂ­
         @after_this_request
         def remove_file(response):
             try:
-                # Počkáme chvíli, než se pokusíme smazat soubor
+                # PoÄŤkĂˇme chvĂ­li, neĹľ se pokusĂ­me smazat soubor
                 import time
-                time.sleep(2)  # 2 sekundy čekání
+                time.sleep(2)  # 2 sekundy ÄŤekĂˇnĂ­
                 
                 if os.path.exists(zip_path):
                     os.remove(zip_path)
                 if os.path.exists(zip_dir):
                     os.rmdir(zip_dir)
             except Exception as error:
-                print(f"Chyba při mazání temp souboru: {error}")
-                # Není fatální - temp soubory se časem vyčistí automaticky
+                print(f"Chyba pĹ™i mazĂˇnĂ­ temp souboru: {error}")
+                # NenĂ­ fatĂˇlnĂ­ - temp soubory se ÄŤasem vyÄŤistĂ­ automaticky
             return response
 
         return send_file(
             zip_path, 
             as_attachment=True, 
             download_name=f"{server.name}_client_mods.zip",
-            # Důležité pro Windows - neukončovat spojení okamžitě
+            # DĹŻleĹľitĂ© pro Windows - neukonÄŤovat spojenĂ­ okamĹľitÄ›
             conditional=True
         )
     
     except Exception as e:
-        # Úklid při chybě
+        # Ăšklid pĹ™i chybÄ›
         try:
             if os.path.exists(zip_path):
                 os.remove(zip_path)
@@ -771,14 +784,14 @@ def download_client_pack():
                 os.rmdir(zip_dir)
         except:
             pass
-        return jsonify({"error": f"Chyba při vytváření ZIP souboru: {str(e)}"}), 500
+        return jsonify({"error": f"Chyba pĹ™i vytvĂˇĹ™enĂ­ ZIP souboru: {str(e)}"}), 500
     
 
 #============ modpacks managment =========#
 @mods_api.route('/api/modpacks/create', methods=['POST'])
 @login_required
 def create_modpack():
-    """Vytvoří nový modpack z vybraných módů"""
+    """VytvoĹ™Ă­ novĂ˝ modpack z vybranĂ˝ch mĂłdĹŻ"""
     data = request.get_json()
     server_id = data.get('server_id')
     pack_name = data.get('name')
@@ -786,25 +799,25 @@ def create_modpack():
     mod_ids = data.get('mod_ids', [])
     
     if not server_id or not pack_name or not mod_ids:
-        return jsonify({'success': False, 'error': 'Chybí povinné údaje'}), 400
+        return jsonify({'success': False, 'error': 'ChybĂ­ povinnĂ© Ăşdaje'}), 400
     
     server = Server.query.get_or_404(server_id)
     
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
     
     try:
-        # Vytvoření složky pro modpacky serveru
+        # VytvoĹ™enĂ­ sloĹľky pro modpacky serveru
         server_packs_dir = os.path.join(BASE_MODPACKS_PATH, str(server_id))
         os.makedirs(server_packs_dir, exist_ok=True)
         
-        # Získání vybraných módů
+        # ZĂ­skĂˇnĂ­ vybranĂ˝ch mĂłdĹŻ
         selected_mods = Mod.query.filter(Mod.id.in_(mod_ids)).all()
         if not selected_mods:
-            return jsonify({'success': False, 'error': 'Nebyly vybrány žádné módy'}), 400
+            return jsonify({'success': False, 'error': 'Nebyly vybrĂˇny ĹľĂˇdnĂ© mĂłdy'}), 400
         
-        # Vytvoření ZIP archivu
+        # VytvoĹ™enĂ­ ZIP archivu
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         safe_name = "".join(c for c in pack_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_name = safe_name.replace(' ', '_')
@@ -815,12 +828,12 @@ def create_modpack():
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for mod in selected_mods:
                 if os.path.exists(mod.file_path):
-                    # Použijeme originální název souboru
+                    # PouĹľijeme originĂˇlnĂ­ nĂˇzev souboru
                     mod_filename = os.path.basename(mod.file_path)
                     zipf.write(mod.file_path, mod_filename)
                     total_size += os.path.getsize(mod.file_path)
         
-        # Vytvoření záznamu v databázi
+        # VytvoĹ™enĂ­ zĂˇznamu v databĂˇzi
         modpack = ModPack(
             name=pack_name,
             description=description,
@@ -831,9 +844,9 @@ def create_modpack():
             created_at=datetime.utcnow()
         )
         db.session.add(modpack)
-        db.session.flush()  # Získat ID pro vazby
+        db.session.flush()  # ZĂ­skat ID pro vazby
         
-        # Přidání vazeb na módy
+        # PĹ™idĂˇnĂ­ vazeb na mĂłdy
         for mod in selected_mods:
             db.session.execute(
                 mod_pack_mods.insert().values(
@@ -846,7 +859,7 @@ def create_modpack():
         
         return jsonify({
             'success': True,
-            'message': f'Modpack "{pack_name}" byl úspěšně vytvořen',
+            'message': f'Modpack "{pack_name}" byl ĂşspÄ›ĹˇnÄ› vytvoĹ™en',
             'modpack_id': modpack.id,
             'file_size': total_size,
             'mod_count': len(selected_mods)
@@ -857,20 +870,20 @@ def create_modpack():
         # Smazat ZIP soubor pokud vznikla chyba
         if 'zip_path' in locals() and os.path.exists(zip_path):
             os.remove(zip_path)
-        return jsonify({'success': False, 'error': f'Chyba při vytváření modpacku: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': f'Chyba pĹ™i vytvĂˇĹ™enĂ­ modpacku: {str(e)}'}), 500
 
 @mods_api.route('/api/modpacks/list')
 @login_required
 def list_modpacks():
-    """Vrátí seznam modpacků pro daný server"""
+    """VrĂˇtĂ­ seznam modpackĹŻ pro danĂ˝ server"""
     server_id = request.args.get('server_id', type=int)
     if not server_id:
-        return jsonify({'error': 'Chybí server_id'}), 400
+        return jsonify({'error': 'ChybĂ­ server_id'}), 400
     
     server = Server.query.get_or_404(server_id)
     
-    # Ověření přístupu
-    if server.owner_id != current_user.id and current_user not in server.admins:
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
+    if not user_can_download_server_content(server):
         abort(403)
     
     modpacks = ModPack.query.filter_by(server_id=server_id).order_by(ModPack.created_at.desc()).all()
@@ -898,18 +911,18 @@ def list_modpacks():
 @mods_api.route('/api/modpacks/download/<int:pack_id>')
 @login_required
 def download_modpack(pack_id):
-    """Stáhne modpack jako ZIP soubor"""
+    """StĂˇhne modpack jako ZIP soubor"""
     modpack = ModPack.query.get_or_404(pack_id)
     
-    # Ověření přístupu k serveru
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu k serveru
     server = modpack.server
-    if server.owner_id != current_user.id and current_user not in server.admins:
+    if not user_can_download_server_content(server):
         abort(403)
     
     if not os.path.exists(modpack.file_path):
         return jsonify({'error': 'Soubor modpacku nebyl nalezen'}), 404
     
-    # Inkrementovat počítadlo stažení
+    # Inkrementovat poÄŤĂ­tadlo staĹľenĂ­
     modpack.download_count += 1
     db.session.commit()
     
@@ -925,10 +938,10 @@ def download_modpack(pack_id):
 @mods_api.route('/api/modpacks/delete/<int:pack_id>', methods=['DELETE'])
 @login_required
 def delete_modpack(pack_id):
-    """Smaže modpack"""
+    """SmaĹľe modpack"""
     modpack = ModPack.query.get_or_404(pack_id)
     
-    # Ověření přístupu - pouze vlastník nebo admin serveru
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu - pouze vlastnĂ­k nebo admin serveru
     server = modpack.server
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
@@ -938,24 +951,24 @@ def delete_modpack(pack_id):
         if os.path.exists(modpack.file_path):
             os.remove(modpack.file_path)
         
-        # Smazat záznam z databáze
+        # Smazat zĂˇznam z databĂˇze
         db.session.delete(modpack)
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'Modpack byl smazán'})
+        return jsonify({'success': True, 'message': 'Modpack byl smazĂˇn'})
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': f'Chyba při mazání: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': f'Chyba pĹ™i mazĂˇnĂ­: {str(e)}'}), 500
     
 
 @mods_api.route('/api/modpacks/update/<int:pack_id>', methods=['PUT'])
 @login_required
 def update_modpack(pack_id):
-    """Aktualizuje existující modpack"""
+    """Aktualizuje existujĂ­cĂ­ modpack"""
     modpack = ModPack.query.get_or_404(pack_id)
     
-    # Ověření přístupu
+    # OvÄ›Ĺ™enĂ­ pĹ™Ă­stupu
     server = modpack.server
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
@@ -966,20 +979,20 @@ def update_modpack(pack_id):
     mod_ids = data.get('mod_ids', [])
     
     if not name or not mod_ids:
-        return jsonify({'success': False, 'error': 'Chybí povinné údaje'}), 400
+        return jsonify({'success': False, 'error': 'ChybĂ­ povinnĂ© Ăşdaje'}), 400
     
     try:
-        # Získání vybraných módů
+        # ZĂ­skĂˇnĂ­ vybranĂ˝ch mĂłdĹŻ
         selected_mods = Mod.query.filter(Mod.id.in_(mod_ids)).all()
         if not selected_mods:
-            return jsonify({'success': False, 'error': 'Nebyly vybrány žádné módy'}), 400
+            return jsonify({'success': False, 'error': 'Nebyly vybrĂˇny ĹľĂˇdnĂ© mĂłdy'}), 400
         
         # Aktualizace metadat
         modpack.name = name
         modpack.description = description
         modpack.updated_at = datetime.utcnow()
         
-        # Aktualizace vazeb na módy
+        # Aktualizace vazeb na mĂłdy
         db.session.execute(
             mod_pack_mods.delete().where(mod_pack_mods.c.mod_pack_id == modpack.id)
         )
@@ -992,7 +1005,7 @@ def update_modpack(pack_id):
                 )
             )
         
-        # Vytvoření nového ZIP archivu
+        # VytvoĹ™enĂ­ novĂ©ho ZIP archivu
         server_packs_dir = os.path.join(BASE_MODPACKS_PATH, str(server.id))
         old_zip_path = modpack.file_path
         
@@ -1014,7 +1027,7 @@ def update_modpack(pack_id):
         modpack.file_path = new_zip_path
         modpack.file_size = total_size
         
-        # Smazat starý ZIP soubor
+        # Smazat starĂ˝ ZIP soubor
         if os.path.exists(old_zip_path) and old_zip_path != new_zip_path:
             os.remove(old_zip_path)
         
@@ -1022,14 +1035,14 @@ def update_modpack(pack_id):
         
         return jsonify({
             'success': True,
-            'message': f'Modpack "{name}" byl úspěšně aktualizován',
+            'message': f'Modpack "{name}" byl ĂşspÄ›ĹˇnÄ› aktualizovĂˇn',
             'file_size': total_size,
             'mod_count': len(selected_mods)
         })
         
     except Exception as e:
         db.session.rollback()
-        # Smazat nový ZIP soubor pokud vznikla chyba
+        # Smazat novĂ˝ ZIP soubor pokud vznikla chyba
         if 'new_zip_path' in locals() and os.path.exists(new_zip_path):
             os.remove(new_zip_path)
-        return jsonify({'success': False, 'error': f'Chyba při aktualizaci modpacku: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': f'Chyba pĹ™i aktualizaci modpacku: {str(e)}'}), 500

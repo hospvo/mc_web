@@ -222,7 +222,7 @@ function initClientTools() {
                     this.buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Připravuji...';
 
                     // ZMĚNA: Použij player endpoint
-                    const response = await fetch(`/api/player/mods/client-pack/download?server_id=${serverId}`);
+                    const response = await fetch(`/api/mods/client-pack/download?server_id=${serverId}`);
                     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 
                     const blob = await response.blob();
@@ -290,7 +290,7 @@ function initClientTools() {
 // Výběr modpacků
 async function showModpacksSelection(serverId) {
     try {
-        const response = await fetch(`/api/modpacks/list?server_id=${serverId}`);
+        const response = await fetch(`/api/player/modpacks/list?server_id=${serverId}`);
         if (!response.ok) throw new Error('Chyba při načítání modpacků');
 
         const modpacks = await response.json();

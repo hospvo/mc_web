@@ -249,12 +249,6 @@
       font-size: 14px;
   }
 
-  .result-display {
-      margin-top: 15px;
-      padding: 10px;
-      border-radius: 4px;
-  }
-
   .success {
       color: green;
   }
@@ -262,28 +256,6 @@
   .error {
       color: red;
   }
-
-  .download-url {
-      width: 100%;
-      padding: 8px;
-      margin: 10px 0;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-  }
-
-  .copy-btn {
-      background-color: #4CAF50;
-      color: white;
-      padding: 8px 12px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-  }
-
-  .copy-btn:hover {
-      background-color: #45a049;
-  }
-
 
   /* Manual download section */
   .plugin-manual-download {
@@ -420,7 +392,7 @@
 
   .installation-success:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   }
 
   .success-icon {
@@ -507,7 +479,7 @@
 
   .plugin-exists-warning:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   }
 
   .warning-icon {
@@ -674,12 +646,6 @@
   .view-existing-btn:hover,
   .switch-tab-btn:hover {
       opacity: 0.9;
-  }
-
-  /* Konzistence s hover efekty karet */
-  .installation-success:hover,
-  .plugin-exists-warning:hover {
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   }
 
   .modrinth-logo {

@@ -77,20 +77,6 @@
     animation: gradientShift 10s ease infinite;
 }
 
-/* Panel pro správu serveru */
-.server-panel {
-    background: #ffffff;
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-    transition: transform 0.2s ease-in-out;
-}
-
-.server-panel:hover {
-    transform: translateY(-5px);
-}
-
 .server-meta {
     margin: 5px 0;
 }
@@ -119,39 +105,10 @@
 .status-indicator.online { background-color: #4CAF50; }
 .status-indicator.offline { background-color: #f44336; }
 
-/* Akční tlačítka */
 .server-actions {
     display: flex;
     gap: 1rem;
     margin-top: 1rem;
-}
-
-.btn {
-    padding: 0.5rem 1.2rem;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    color: white;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: opacity 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
-}
-
-.btn-success { background-color: #4CAF50; }
-.btn-warning { background-color: #ff9800; }
-.btn-danger { background-color: #f44336; }
-
-.btn:hover {
-    opacity: 0.9;
-    transform: scale(1.05);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-}
-
-.btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
 }
 
 /* Kompaktní styl sekce hráčů */
@@ -405,6 +362,7 @@
     justify-content: center;
     z-index: 999;
     overflow: hidden;
+    -webkit-backdrop-filter: blur(3px);
     backdrop-filter: blur(3px);
 }
 .log-dialog.hidden {
@@ -556,23 +514,6 @@
     font-size: 14px;
 }
 
-/* Disk usage panel */
-.disk-usage-panel {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-.combined-progress {
-    height: 30px;
-    background-color: #e9ecef;
-    border-radius: 4px;
-    overflow: hidden;
-    display: flex;
-}
-
 .progress-bar {
     height: 100%;
     transition: width 0.6s ease;
@@ -634,61 +575,6 @@
     z-index: 0;
 }
 
-/* Admin management panel */
-#admin-management-panel {
-    background-color: #f8f9fa;
-    border: 1px solid #ced4da;
-    padding: 20px;
-    border-radius: 8px;
-    margin-top: 30px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-}
-
-#admin-management-panel h3,
-#admin-management-panel h4 {
-    margin-bottom: 15px;
-    font-weight: 600;
-    color: #343a40;
-}
-
-/* Vstup pro e-mail admina */
-#admin-email-input {
-    width: 100%;
-    max-width: 400px;
-    padding: 10px 12px;
-    border: 1px solid #ced4da;
-    border-radius: 5px;
-    font-size: 1rem;
-    transition: border-color 0.2s;
-    margin-bottom: 10px;
-}
-
-#admin-email-input:focus {
-    border-color: #80bdff;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-/* Tlačítko "Přidat admina" */
-#add-admin-btn {
-    padding: 10px 16px;
-    font-size: 1rem;
-    background-color: #007bff;
-    border: none;
-    border-radius: 5px;
-    color: white;
-    transition: background-color 0.2s ease, transform 0.1s ease;
-    cursor: pointer;
-}
-
-#add-admin-btn:hover {
-    background-color: #0056b3;
-}
-
-#add-admin-btn:active {
-    transform: scale(0.98);
-}
-
 /* Seznam adminů */
 #admin-list {
     max-width: 500px;
@@ -731,6 +617,7 @@
     background: rgba(255, 255, 255, 0.2);
     padding: 0.3rem 0.8rem;
     border-radius: 20px;
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
@@ -849,28 +736,12 @@
     overflow: hidden;
 }
 
-.tool-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #3498db, #2ecc71);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
 /* Jemnější hover efekt pro karty - bez zvedání */
 .tool-card:hover {
     background: #ffffff;
     border-color: #3498db;
     box-shadow: 0 3px 8px rgba(52, 152, 219, 0.12);
     transform: none; /* Odstraněno translateY */
-}
-
-.tool-card:hover::before {
-    opacity: 1;
 }
 
 .tool-card h5 {
@@ -894,54 +765,6 @@
     margin-bottom: 1rem;
     line-height: 1.5;
     font-size: 0.95rem;
-}
-
-/* Tlačítka v kartách */
-.tool-card .btn {
-    padding: 0.5rem 1.2rem;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    color: white;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
-    font-weight: 500;
-    font-size: 0.9rem;
-}
-
-.tool-card .btn-success { 
-    background: linear-gradient(135deg, #4CAF50, #45a049);
-}
-
-.tool-card .btn-warning { 
-    background: linear-gradient(135deg, #ff9800, #e68900);
-}
-
-.tool-card .btn-info { 
-    background: linear-gradient(135deg, #17a2b8, #138496);
-}
-
-.tool-card .btn-secondary { 
-    background: linear-gradient(135deg, #6c757d, #5a6268);
-}
-
-.tool-card .btn:hover {
-    opacity: 0.9;
-    transform: scale(1.02); /* Jemnější transformace */
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
-}
-
-.tool-card .btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-}
-
-.tool-card .btn:active {
-    transform: scale(0.98);
 }
 
 /* Status zprávy */
@@ -985,26 +808,6 @@
     box-shadow: 0 1px 3px rgba(133, 100, 4, 0.1);
 }
 
-/* Animace pro načítání */
-@keyframes toolFadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.tool-card {
-    animation: toolFadeIn 0.4s ease-out;
-}
-
-.tool-card:nth-child(1) { animation-delay: 0.1s; }
-.tool-card:nth-child(2) { animation-delay: 0.2s; }
-.tool-card:nth-child(3) { animation-delay: 0.3s; }
-
 /* Větší rozestupy mezi kontejnery */
 .client-tools-section {
     margin-top: 1.5rem;
@@ -1042,15 +845,6 @@
         justify-content: center;
         padding: 0.6rem 1rem;
     }
-}
-
-/* Jemnější efekty pro ikony */
-.tool-card h5 i {
-    transition: transform 0.3s ease;
-}
-
-.tool-card:hover h5 i {
-    transform: scale(1.05); /* Jemnější transformace */
 }
 
 /* Progress indikátor pro stahování */
@@ -1107,22 +901,6 @@
     margin-top: 2rem;
 }
 
-/* Subtle border animation pro celou sekci */
-.client-tools-section::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #3498db, transparent);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.client-tools-section:hover::after {
-    opacity: 1;
-}
 /* ================================
    SEKCE: SPRÁVA MODPACKŮ
 ================================ */
@@ -1163,7 +941,11 @@
     margin-right: 10px;
 }
 
-.mod-info { flex: 1; }
+.mod-info {
+    flex: 1;
+    margin: 0;
+    cursor: pointer;
+}
 .mod-name { font-weight: 600; color: #2d3748; }
 .mod-version { font-size: 0.85rem; color: #6c757d; margin-left: 8px; }
 .mod-description { font-size: 0.8rem; color: #6c757d; margin-top: 2px; }
@@ -1258,6 +1040,14 @@
     border-radius: 0 0 8px 8px;
     padding: 1.5rem;
     animation: slideDown 0.3s ease;
+}
+
+.section-content.collapsed {
+    display: none;
+}
+
+.section-content.expanded {
+    display: block;
 }
 @keyframes slideDown {
     from { opacity: 0; transform: translateY(-10px); }
@@ -1390,6 +1180,136 @@ textarea.form-control { resize: vertical; }
 }
 
 /* ================================
+   SERVER.PROPERTIES
+================================ */
+.server-properties-panel {
+    margin-top: 2rem;
+}
+
+.properties-panel-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.properties-panel-head h4 {
+    margin: 0 0 0.35rem;
+    color: #2d3748;
+}
+
+.properties-panel-head p,
+.properties-meta {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.properties-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.properties-form {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.properties-group {
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid #dde5ee;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.properties-group legend {
+    padding: 0 0.35rem;
+    color: #1f2937;
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.properties-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.9rem;
+}
+
+.property-field,
+.property-toggle {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.property-field span,
+.property-toggle strong {
+    color: #1f2937;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.property-field small,
+.property-toggle small {
+    color: #64748b;
+    font-size: 0.72rem;
+}
+
+.property-toggle {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    min-height: 42px;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #dde5ee;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.property-toggle input {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+}
+
+.properties-status {
+    min-height: 22px;
+    margin-top: 0.9rem;
+    color: #64748b;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.properties-status.success {
+    color: #17603c;
+}
+
+.properties-status.error {
+    color: #c33d3d;
+}
+
+.properties-status.info {
+    color: #235b83;
+}
+
+.properties-empty {
+    display: grid;
+    gap: 0.4rem;
+    place-items: center;
+    min-height: 120px;
+    padding: 1.4rem;
+    color: #64748b;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    text-align: center;
+}
+
+/* ================================
    ODSTUPY
 ================================ */
 .mb-2 { margin-bottom: 0.5rem; }
@@ -1408,114 +1328,6 @@ textarea.form-control { resize: vertical; }
     .section-header { padding: 0.8rem 1rem; }
     .section-header h4 { font-size: 1rem; }
     .section-content { padding: 1rem; }
-}
-
-/* === Primární modré tlačítko (pro editaci, potvrzení atd.) === */
-#edit-modpack-btn {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-    color: white;
-    border: none;
-    transition: all 0.2s ease;
-}
-
-
-#edit-modpack-btn:hover {
-    background: linear-gradient(135deg, #2980b9, #1f6fa5);
-    transform: translateY(-1px);
-    box-shadow: 0 3px 6px rgba(41, 128, 185, 0.3);
-}
-
-
-/* ================================
-   SPECIFICKÁ TLAČÍTKA
-================================ */
-
-/* Modré tlačítko pro editaci modpacku */
-.btn.btn-sm.btn-primary.edit-modpack-btn {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.2);
-}
-
-.btn.btn-sm.btn-primary.edit-modpack-btn:hover {
-    background: linear-gradient(135deg, #2980b9, #1f6fa5);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(41, 128, 185, 0.3);
-}
-
-/* Oranžové tlačítko pro přepínání oznámení */
-.btn.btn-sm.btn-secondary.toggle-notice-btn {
-    background: linear-gradient(135deg, #f39c12, #e67e22);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    box-shadow: 0 2px 4px rgba(243, 156, 18, 0.2);
-}
-
-.btn.btn-sm.btn-secondary.toggle-notice-btn:hover {
-    background: linear-gradient(135deg, #e67e22, #d35400);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(230, 126, 34, 0.3);
-}
-
-/* Červené tlačítko pro zrušení editace */
-.btn.btn-sm.btn-secondary.cancel-edit-btn {
-    background: linear-gradient(135deg, #e74c3c, #c0392b);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    box-shadow: 0 2px 4px rgba(231, 76, 60, 0.2);
-}
-
-.btn.btn-sm.btn-secondary.cancel-edit-btn:hover {
-    background: linear-gradient(135deg, #c0392b, #a93226);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(192, 57, 43, 0.3);
-}
-
-/* Společné styly pro všechna tlačítka */
-.btn.btn-sm.btn-primary.edit-modpack-btn:active,
-.btn.btn-sm.btn-secondary.toggle-notice-btn:active,
-.btn.btn-sm.btn-secondary.cancel-edit-btn:active {
-    transform: translateY(0);
-}
-
-.btn.btn-sm.btn-primary.edit-modpack-btn:focus,
-.btn.btn-sm.btn-secondary.toggle-notice-btn:focus,
-.btn.btn-sm.btn-secondary.cancel-edit-btn:focus {
-    outline: none;
-}
-
-.btn.btn-sm.btn-primary.edit-modpack-btn i,
-.btn.btn-sm.btn-secondary.toggle-notice-btn i,
-.btn.btn-sm.btn-secondary.cancel-edit-btn i {
-    font-size: 0.7rem;
 }
 
 
@@ -1688,51 +1500,6 @@ textarea.form-control { resize: vertical; }
     min-width: 80px;
 }
 
-/* === Generate Code Button === */
-#generate-code-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 6px;
-    font-weight: 600;
-    font-family: inherit;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
-}
-
-#generate-code-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
-}
-
-#generate-code-btn:active {
-    transform: translateY(0);
-}
-
-#generate-code-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-}
-
-/* === Revoke Code Button === */
-.revoke-code-btn {
-    background: linear-gradient(135deg, #e74c3c, #c0392b);
-    color: white;
-    border: none;
-    padding: 0.3rem 0.8rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    font-family: inherit;
-    transition: all 0.2s ease;
-}
-
-.revoke-code-btn:hover {
-    background: linear-gradient(135deg, #c0392b, #a93226);
-    transform: scale(1.05);
-}
-
 /* === Generated Code Result === */
 #generated-code-result {
     border-left: 4px solid #28a745;
@@ -1799,24 +1566,6 @@ textarea.form-control { resize: vertical; }
         opacity: 1;
         transform: translateY(0);
     }
-}
-
-/* === Badge Styling === */
-.badge {
-    font-size: 0.7rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 10px;
-    font-weight: 500;
-}
-
-.badge-success {
-    background: linear-gradient(135deg, #28a745, #20c997);
-    color: white;
-}
-
-.badge-secondary {
-    background: linear-gradient(135deg, #6c757d, #5a6268);
-    color: white;
 }
 
 /* === Text Improvements === */
@@ -1949,5 +1698,546 @@ textarea.form-control { resize: vertical; }
     to {
         transform: translateX(100%);
         opacity: 0;
+    }
+}
+
+/* =========================================
+   UI CONSISTENCY PASS
+   Sjednocuje podobne panely a ovladaci prvky.
+========================================= */
+:root {
+    --panel-bg: #f6f8fb;
+    --panel-surface: #ffffff;
+    --panel-soft: #f8fafc;
+    --panel-border: #dde5ee;
+    --panel-text: #1f2937;
+    --panel-muted: #64748b;
+    --panel-primary: #2f7d58;
+    --panel-primary-dark: #256647;
+    --panel-blue: #2d6cdf;
+    --panel-blue-dark: #2458b8;
+    --panel-green: #2f9d63;
+    --panel-green-dark: #247a4d;
+    --panel-amber: #b87503;
+    --panel-amber-dark: #965f02;
+    --panel-red: #c33d3d;
+    --panel-red-dark: #9f3030;
+    --panel-radius: 8px;
+    --panel-shadow: 0 10px 26px rgba(22, 32, 46, 0.08);
+    --panel-shadow-hover: 0 14px 32px rgba(22, 32, 46, 0.12);
+    --panel-focus: 0 0 0 3px rgba(47, 125, 88, 0.14);
+}
+
+body {
+    background: var(--panel-bg);
+    color: var(--panel-text);
+}
+
+.server-panel {
+    width: min(100% - 32px, 1600px);
+    max-width: none;
+    margin: 24px auto;
+    padding: 1.5rem;
+    background: var(--panel-surface);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+}
+
+.server-panel:hover {
+    transform: none;
+    box-shadow: var(--panel-shadow);
+}
+
+.server-panel .server-panel,
+.backup-panel,
+.disk-usage-panel,
+.client-tools-section,
+.server-properties-panel,
+.player-info-section > .server-panel,
+.modpacks-management-section .server-panel,
+#admin-management-panel,
+#player-access-management,
+.plugins-quickview,
+.mods-quickview,
+.join-server-section {
+    margin-top: 20px;
+    margin-bottom: 0;
+    padding: 20px;
+    background: var(--panel-surface);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+}
+
+.console-section,
+#online-players-panel {
+    border-radius: var(--panel-radius);
+}
+
+.backup-panel h3,
+.disk-usage-panel h3,
+.client-tools-section h3,
+.server-properties-panel h3,
+.player-info-section h3,
+.modpacks-management-section h3,
+#admin-management-panel h3,
+#player-access-management h4,
+.plugins-quickview h3,
+.mods-quickview h3,
+.join-server-section h2 {
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    color: var(--panel-text);
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 1.12rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.server-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.meta-badge,
+.owner-badge,
+.admin-badge,
+.player-badge,
+.badge,
+.mod-badge,
+.notice-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: none;
+}
+
+.meta-badge,
+.mod-badge {
+    color: #475569;
+    background: #eef3f8;
+    border-color: #dce5ee;
+}
+
+.owner-badge {
+    color: #7c2d12;
+    background: #ffedd5;
+    border-color: #fed7aa;
+}
+
+.admin-badge {
+    color: #1d4ed8;
+    background: #dbeafe;
+    border-color: #bfdbfe;
+}
+
+.player-badge {
+    color: #166534;
+    background: #dcfce7;
+    border-color: #bbf7d0;
+}
+
+.btn,
+.button.small,
+#add-admin-btn,
+#generate-code-btn,
+.revoke-code-btn,
+.backup-actions button {
+    min-height: 38px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--panel-radius);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: none;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, opacity 0.16s ease, border-color 0.16s ease;
+}
+
+.btn:hover,
+.button.small:hover,
+#add-admin-btn:hover,
+#generate-code-btn:hover,
+.revoke-code-btn:hover,
+.backup-actions button:hover {
+    opacity: 1;
+    transform: translateY(-1px);
+    box-shadow: var(--panel-shadow-hover);
+}
+
+.btn:active,
+.button.small:active,
+#add-admin-btn:active,
+#generate-code-btn:active,
+.revoke-code-btn:active,
+.backup-actions button:active {
+    transform: translateY(0);
+    box-shadow: var(--panel-shadow);
+}
+
+.btn:focus-visible,
+.button.small:focus-visible,
+.console-button:focus-visible,
+.dialog-btn:focus-visible,
+.form-control:focus-visible,
+#backup-name:focus-visible,
+#admin-email-input:focus-visible {
+    outline: none;
+    box-shadow: var(--panel-focus);
+}
+
+.btn:disabled,
+.button.small:disabled,
+#generate-code-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-primary,
+.btn-success,
+.button.small,
+#generate-code-btn,
+.backup-actions button {
+    background: var(--panel-primary);
+}
+
+.btn-primary:hover,
+.btn-success:hover,
+.button.small:hover,
+#generate-code-btn:hover,
+.backup-actions button:hover {
+    background: var(--panel-primary-dark);
+}
+
+.btn-info,
+.btn-outline-secondary {
+    color: #ffffff;
+    background: var(--panel-blue);
+}
+
+.btn-info:hover,
+.btn-outline-secondary:hover {
+    background: var(--panel-blue-dark);
+}
+
+.btn-warning,
+.btn.btn-sm.btn-secondary.toggle-notice-btn {
+    background: var(--panel-amber);
+}
+
+.btn-warning:hover,
+.btn.btn-sm.btn-secondary.toggle-notice-btn:hover {
+    background: var(--panel-amber-dark);
+}
+
+.btn-danger,
+.revoke-code-btn,
+.btn.btn-sm.btn-secondary.cancel-edit-btn {
+    background: var(--panel-red);
+}
+
+.btn-danger:hover,
+.revoke-code-btn:hover,
+.btn.btn-sm.btn-secondary.cancel-edit-btn:hover {
+    background: var(--panel-red-dark);
+}
+
+.btn-secondary {
+    color: var(--panel-text);
+    background: #e9eef4;
+}
+
+.btn-secondary:hover {
+    background: #dde5ee;
+}
+
+.text-tool-btn.btn-outline-secondary {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0 9px;
+    color: var(--panel-muted);
+    background: var(--panel-surface);
+    border: 1px solid var(--panel-border);
+    box-shadow: none;
+}
+
+.text-tool-btn.btn-outline-secondary:hover {
+    color: var(--panel-text);
+    background: #eef3f8;
+    border-color: #cbd5e1;
+    box-shadow: none;
+    transform: none;
+}
+
+.badge-success {
+    color: #17603c;
+    background: #daf5e7;
+    border-color: #bfe9d1;
+}
+
+.badge-secondary {
+    color: #596579;
+    background: #edf1f5;
+    border-color: #dce5ee;
+}
+
+.btn-sm,
+.btn.btn-sm.btn-primary.edit-modpack-btn,
+.btn.btn-sm.btn-secondary.toggle-notice-btn,
+.btn.btn-sm.btn-secondary.cancel-edit-btn {
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-size: 0.78rem;
+}
+
+.btn.btn-sm.btn-primary.edit-modpack-btn {
+    background: var(--panel-blue);
+}
+
+.btn.btn-sm.btn-primary.edit-modpack-btn:hover {
+    background: var(--panel-blue-dark);
+}
+
+.tool-card .btn,
+.modpack-actions .btn,
+.notice-actions .btn {
+    transform: none;
+}
+
+.tool-card .btn:hover,
+.modpack-actions .btn:hover,
+.notice-actions .btn:hover {
+    transform: translateY(-1px);
+}
+
+.tool-card .btn-success,
+.tool-card .btn-success:hover,
+#download-client-pack,
+#download-client-pack:hover {
+    background: var(--panel-primary);
+    color: #ffffff;
+}
+
+.tool-card .btn-info,
+.tool-card .btn-info:hover,
+#show-modpacks,
+#show-modpacks:hover {
+    background: var(--panel-blue);
+    color: #ffffff;
+}
+
+.tool-card .btn-success:hover,
+#download-client-pack:hover {
+    background: var(--panel-primary-dark);
+}
+
+.tool-card .btn-info:hover,
+#show-modpacks:hover {
+    background: var(--panel-blue-dark);
+}
+
+.form-control,
+#backup-name,
+#admin-email-input {
+    min-height: 40px;
+    padding: 0 12px;
+    color: var(--panel-text);
+    background: var(--panel-surface);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 0.92rem;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+textarea.form-control {
+    min-height: 96px;
+    padding-top: 10px;
+    line-height: 1.5;
+}
+
+.form-control:focus,
+#backup-name:focus,
+#admin-email-input:focus {
+    border-color: rgba(47, 125, 88, 0.55);
+    box-shadow: var(--panel-focus);
+    outline: none;
+}
+
+.form-group {
+    margin-bottom: 14px;
+}
+
+.form-group label,
+.form-inline label {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: var(--panel-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.tool-card,
+.modpack-item,
+.notice-item,
+.access-code-item,
+.backup-item,
+.generate-code-form {
+    background: var(--panel-surface);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: none;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.tool-card:hover,
+.modpack-item:hover,
+.notice-item:hover,
+.access-code-item:hover,
+.backup-item:hover {
+    border-color: rgba(47, 125, 88, 0.34);
+    box-shadow: 0 8px 20px rgba(22, 32, 46, 0.08);
+    transform: none;
+}
+
+.tool-card h5,
+.modpack-title,
+.notice-title {
+    color: var(--panel-text);
+}
+
+.tool-card p,
+.notice-content,
+.server-info p,
+.form-text.text-muted {
+    color: var(--panel-muted);
+}
+
+.tool-status {
+    border-radius: var(--panel-radius);
+    box-shadow: none;
+}
+
+.section-header {
+    background: var(--panel-soft);
+    color: var(--panel-text);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: none;
+}
+
+.section-header:hover {
+    background: #eef3f8;
+    border-color: rgba(47, 125, 88, 0.34);
+    box-shadow: none;
+}
+
+.section-header h3,
+.section-header h4 {
+    color: inherit;
+}
+
+.section-content,
+.create-modpack-form,
+.modpacks-list,
+.mods-checklist,
+.properties-group,
+.generate-code-form .form-inline,
+.disk-usage-panel,
+.inactive-codes-header {
+    background: var(--panel-soft);
+    border-color: var(--panel-border);
+    border-radius: var(--panel-radius);
+}
+
+.combined-progress {
+    height: 18px;
+    border-radius: 999px;
+}
+
+.progress-bar {
+    position: relative;
+    z-index: 1;
+}
+
+.server-bar {
+    background: var(--panel-blue);
+}
+
+.backup-bar {
+    background: var(--panel-amber);
+}
+
+.notifications-container {
+    top: 18px;
+    right: 18px;
+}
+
+.notification {
+    border: 1px solid var(--panel-border);
+    border-left-width: 4px;
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .server-panel {
+        margin: 14px;
+        padding: 16px;
+    }
+
+    .server-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        text-align: center;
+    }
+
+    .server-panel .server-panel,
+    .backup-panel,
+    .disk-usage-panel,
+    .client-tools-section,
+    .server-properties-panel,
+    .player-info-section > .server-panel,
+    .modpacks-management-section .server-panel,
+    #admin-management-panel,
+    #player-access-management,
+    .plugins-quickview,
+    .mods-quickview,
+    .join-server-section {
+        padding: 16px;
     }
 }

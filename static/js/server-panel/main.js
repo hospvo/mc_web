@@ -11,6 +11,7 @@ import { api } from './core/api.js';
 import { API_ENDPOINTS } from './core/constants.js';
 import { playerAccessManager } from './modules/player-access.js';
 import { adminManager } from './modules/admin.js';
+import { propertiesManager } from './modules/properties.js';
 
 class ServerPanel {
     constructor() {
@@ -175,6 +176,12 @@ class ServerPanel {
         if (document.querySelector('.backup-panel')) {
             modulePromises.push(backupManager.init());
             this.modules.push(backupManager);
+        }
+
+        // Server properties manager
+        if (document.getElementById('server-properties-panel')) {
+            modulePromises.push(propertiesManager.init());
+            this.modules.push(propertiesManager);
         }
 
         // Modpacks manager

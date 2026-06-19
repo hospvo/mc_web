@@ -124,19 +124,35 @@ class ModpacksManager {
         const sectionHeaders = document.querySelectorAll('.section-header');
 
         sectionHeaders.forEach(header => {
-            header.addEventListener('click', function () {
-                const section = this.dataset.section;
-                const content = document.getElementById(`${section}-content`);
-                const icon = this.querySelector('.toggle-icon');
+            if (header.dataset.expandableReady === 'true') {
+                return;
+            }
 
-                if (content.style.display === 'none') {
-                    content.style.display = 'block';
-                    this.classList.add('expanded');
-                } else {
-                    content.style.display = 'none';
+            const section = header.dataset.section;
+            const content = document.getElementById(`${section}-content`);
+            if (!content) {
+                return;
+            }
+
+            content.style.display = '';
+            content.classList.remove('expanded');
+            content.classList.add('collapsed');
+            header.classList.remove('expanded');
+
+            header.addEventListener('click', function () {
+                const isExpanded = content.classList.contains('expanded');
+
+                if (isExpanded) {
+                    content.classList.remove('expanded');
+                    content.classList.add('collapsed');
                     this.classList.remove('expanded');
+                } else {
+                    content.classList.remove('collapsed');
+                    content.classList.add('expanded');
+                    this.classList.add('expanded');
                 }
             });
+            header.dataset.expandableReady = 'true';
         });
     }
 
@@ -166,12 +182,13 @@ class ModpacksManager {
                 const modItem = document.createElement('div');
                 modItem.className = 'mod-checkbox-item';
                 modItem.innerHTML = `
-                    <input type="checkbox" id="mod-${mod.id}" value="${mod.id}" class="mod-checkbox">
-                    <div class="mod-info">
+                    <input type="checkbox" id="mod-${mod.id}" value="${mod.id}" class="mod-checkbox"
+                           title="Vybrat mod" aria-label="Vybrat mod">
+                    <label class="mod-info" for="mod-${mod.id}">
                         <span class="mod-name">${mod.display_name}</span>
                         <span class="mod-version">v${mod.version}</span>
                         ${mod.description ? `<div class="mod-description">${mod.description}</div>` : ''}
-                    </div>
+                    </label>
                 `;
                 checklist.appendChild(modItem);
             });
@@ -391,12 +408,13 @@ class ModpacksManager {
                             <div class="mod-checkbox-item">
                                 <input type="checkbox" id="edit-mod-${mod.id}-${packId}" 
                                        value="${mod.id}" ${pack.mods.some(m => m.id === mod.id) ? 'checked' : ''}
-                                       class="mod-checkbox">
-                                <div class="mod-info">
+                                       class="mod-checkbox"
+                                       title="Vybrat mod" aria-label="Vybrat mod">
+                                <label class="mod-info" for="edit-mod-${mod.id}-${packId}">
                                     <span class="mod-name">${mod.display_name}</span>
                                     <span class="mod-version">v${mod.version}</span>
                                     ${mod.description ? `<div class="mod-description">${mod.description}</div>` : ''}
-                                </div>
+                                </label>
                             </div>
                         `).join('')}
                     </div>

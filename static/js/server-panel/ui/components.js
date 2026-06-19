@@ -329,22 +329,21 @@ export class ExpandableSections {
                 computedDisplay: window.getComputedStyle(content).display
             });
 
-            // Zajisti, že má správnou počáteční třídu
-            if (!content.classList.contains('collapsed') && !content.classList.contains('expanded')) {
-                content.classList.add('collapsed');
-            }
-
-            // Nastav počáteční stav hlavičky
-            if (content.classList.contains('expanded')) {
-                header.classList.add('expanded');
-            } else {
-                header.classList.remove('expanded');
-            }
+            // Vsechny rozbalovaci sekce startuji zavrene.
+            content.style.display = '';
+            content.classList.remove('expanded');
+            content.classList.add('collapsed');
+            header.classList.remove('expanded');
 
             // Přidat event listener
+            if (header.dataset.expandableReady === 'true') {
+                return;
+            }
+
             header.addEventListener('click', () => {
                 this.toggleSection(header, content, section);
             });
+            header.dataset.expandableReady = 'true';
 
             // Přidat CSS pro kurzor
             header.style.cursor = 'pointer';

@@ -1534,12 +1534,13 @@ async function loadAvailableMods() {
             const modItem = document.createElement('div');
             modItem.className = 'mod-checkbox-item';
             modItem.innerHTML = `
-                <input type="checkbox" id="mod-${mod.id}" value="${mod.id}" class="mod-checkbox">
-                <div class="mod-info">
+                <input type="checkbox" id="mod-${mod.id}" value="${mod.id}" class="mod-checkbox"
+                       title="Vybrat mod" aria-label="Vybrat mod">
+                <label class="mod-info" for="mod-${mod.id}">
                     <span class="mod-name">${mod.display_name}</span>
                     <span class="mod-version">v${mod.version}</span>
                     ${mod.description ? `<div class="mod-description">${mod.description}</div>` : ''}
-                </div>
+                </label>
             `;
             checklist.appendChild(modItem);
         });
@@ -1558,19 +1559,35 @@ function setupExpandableSections() {
     const sectionHeaders = document.querySelectorAll('.section-header');
 
     sectionHeaders.forEach(header => {
-        header.addEventListener('click', function () {
-            const section = this.dataset.section;
-            const content = document.getElementById(`${section}-content`);
-            const icon = this.querySelector('.toggle-icon');
+        if (header.dataset.expandableReady === 'true') {
+            return;
+        }
 
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                this.classList.add('expanded');
-            } else {
-                content.style.display = 'none';
+        const section = header.dataset.section;
+        const content = document.getElementById(`${section}-content`);
+        if (!content) {
+            return;
+        }
+
+        content.style.display = '';
+        content.classList.remove('expanded');
+        content.classList.add('collapsed');
+        header.classList.remove('expanded');
+
+        header.addEventListener('click', function () {
+            const isExpanded = content.classList.contains('expanded');
+
+            if (isExpanded) {
+                content.classList.remove('expanded');
+                content.classList.add('collapsed');
                 this.classList.remove('expanded');
+            } else {
+                content.classList.remove('collapsed');
+                content.classList.add('expanded');
+                this.classList.add('expanded');
             }
         });
+        header.dataset.expandableReady = 'true';
     });
 }
 
@@ -1804,12 +1821,13 @@ async function toggleEditModpack(packId) {
                         <div class="mod-checkbox-item">
                             <input type="checkbox" id="edit-mod-${mod.id}-${packId}" 
                                    value="${mod.id}" ${pack.mods.some(m => m.id === mod.id) ? 'checked' : ''}
-                                   class="mod-checkbox">
-                            <div class="mod-info">
+                                   class="mod-checkbox"
+                                   title="Vybrat mod" aria-label="Vybrat mod">
+                            <label class="mod-info" for="edit-mod-${mod.id}-${packId}">
                                 <span class="mod-name">${mod.display_name}</span>
                                 <span class="mod-version">v${mod.version}</span>
                                 ${mod.description ? `<div class="mod-description">${mod.description}</div>` : ''}
-                            </div>
+                            </label>
                         </div>
                     `).join('')}
                 </div>
@@ -2238,11 +2256,11 @@ async function editNotice(noticeId) {
                 <input type="text" class="form-control mb-2 edit-notice-title" value="${notice.title}">
                 
                 <div class="text-toolbar mb-2">
-                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="bold"><i class="fas fa-bold"></i></button>
-                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="italic"><i class="fas fa-italic"></i></button>
-                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="underline"><i class="fas fa-underline"></i></button>
-                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="code"><i class="fas fa-code"></i></button>
-                    <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="link"><i class="fas fa-link"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="bold" title="Tu&#269;n&#233;" aria-label="Tu&#269;n&#233;"><i class="fas fa-bold"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="italic" title="Kurz&#237;va" aria-label="Kurz&#237;va"><i class="fas fa-italic"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="underline" title="Podtr&#382;en&#237;" aria-label="Podtr&#382;en&#237;"><i class="fas fa-underline"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="code" title="K&#243;d" aria-label="K&#243;d"><i class="fas fa-code"></i></button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="link" title="Vlo&#382;it odkaz" aria-label="Vlo&#382;it odkaz"><i class="fas fa-link"></i></button>
                 </div>
 
                 <textarea class="form-control mb-3 edit-notice-content" rows="5">${notice.content}</textarea>

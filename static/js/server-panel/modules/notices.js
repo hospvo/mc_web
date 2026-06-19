@@ -280,11 +280,11 @@ class NoticesManager {
                     <input type="text" class="form-control mb-2 edit-notice-title" value="${notice.title}">
                     
                     <div class="text-toolbar mb-2">
-                        <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="bold"><i class="fas fa-bold"></i></button>
-                        <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="italic"><i class="fas fa-italic"></i></button>
-                        <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="underline"><i class="fas fa-underline"></i></button>
-                        <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="code"><i class="fas fa-code"></i></button>
-                        <button class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="bold" title="Tu&#269;n&#233;" aria-label="Tu&#269;n&#233;"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="italic" title="Kurz&#237;va" aria-label="Kurz&#237;va"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="underline" title="Podtr&#382;en&#237;" aria-label="Podtr&#382;en&#237;"><i class="fas fa-underline"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="code" title="K&#243;d" aria-label="K&#243;d"><i class="fas fa-code"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-tool-btn" data-tag="link" title="Vlo&#382;it odkaz" aria-label="Vlo&#382;it odkaz"><i class="fas fa-link"></i></button>
                     </div>
 
                     <textarea class="form-control mb-3 edit-notice-content" rows="5">${notice.content}</textarea>
