@@ -1,7 +1,6 @@
 from flask import Blueprint, render_template, abort, request, jsonify
 from flask_login import login_required, current_user
-from models import Server, PlayerServerAccess, PlayerNotice, Mod
-from datetime import datetime
+from models import Server, PlayerServerAccess, PlayerNotice
 
 player_api = Blueprint("player_view", __name__)
 
@@ -80,19 +79,3 @@ def get_installed_mods():
     ])
 
 
-# -----------------------------
-# API: Player Report
-# -----------------------------
-@player_api.route("/api/player/report", methods=["POST"])
-@login_required
-def player_report():
-    data = request.get_json(force=True)
-    server_id = data.get("server_id")
-    message = data.get("message", "").strip()
-    if not message:
-        return jsonify({"error": "Zpráva nesmí být prázdná."}), 400
-
-    # Jednoduše log do konzole (do budoucna může jít do tabulky nebo Discord webhooku)
-    print(f"[REPORT] Hráč {current_user.username} → Server {server_id}: {message}")
-
-    return jsonify({"success": True, "message": "Zpráva byla odeslána adminům."})

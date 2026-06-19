@@ -117,7 +117,7 @@ class BackupManager {
                 return;
             }
 
-            const result = await api.post(API_ENDPOINTS.SERVER_BACKUPS + '/create', {
+            const result = await api.post(API_ENDPOINTS.SERVER_BACKUP_CREATE, {
                 server_id: this.serverId,
                 name: nameInput?.value.trim() || undefined
             });
@@ -158,7 +158,7 @@ class BackupManager {
         }
 
         try {
-            const result = await api.post(API_ENDPOINTS.SERVER_BACKUPS + '/restore', {
+            const result = await api.post(API_ENDPOINTS.SERVER_BACKUP_RESTORE, {
                 server_id: this.serverId,
                 name: backupName
             });
@@ -189,7 +189,7 @@ class BackupManager {
         if (!confirm(`Smazat zálohu "${backupName}"?`)) return;
 
         try {
-            const result = await api.post(API_ENDPOINTS.SERVER_BACKUPS + '/delete', {
+            const result = await api.post(API_ENDPOINTS.SERVER_BACKUP_DELETE, {
                 server_id: this.serverId,
                 name: backupName
             });

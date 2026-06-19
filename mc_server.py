@@ -1427,10 +1427,24 @@ def send_command_api():
     return jsonify({'success': success})
 
 
+def get_json_body():
+    return request.get_json(silent=True) or {}
+
+
+def get_server_id_from_request():
+    server_id = request.args.get('server_id', type=int) or get_json_body().get('server_id')
+    try:
+        return int(server_id) if server_id else None
+    except (TypeError, ValueError):
+        return None
+
+
+@server_api.route('/api/server/backups/create', methods=['POST'])
 @server_api.route('/api/server/backup/create', methods=['POST'])
 @login_required
 def create_backup_api():
-    server_id = request.args.get('server_id', type=int)
+    data = get_json_body()
+    server_id = get_server_id_from_request()
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
     
@@ -1438,21 +1452,21 @@ def create_backup_api():
     if status['status'] == 'running':
         return jsonify({'success': False, 'error': 'Server must be stopped to create backup'}), 400
     
-    data = request.get_json()
     backup_name = data.get('name', None)
     success, result = create_backup_for_server(server_id, backup_name)
     if success:
         return jsonify({'success': True, 'backup_path': result})
     return jsonify({'success': False, 'error': result}), 400
 
+@server_api.route('/api/server/backups/restore', methods=['POST'])
 @server_api.route('/api/server/backup/restore', methods=['POST'])
 @login_required
 def restore_backup_api():
-    server_id = request.args.get('server_id', type=int)
+    data = get_json_body()
+    server_id = get_server_id_from_request()
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
     
-    data = request.get_json()
     backup_name = data.get('name')
     if not backup_name:
         return jsonify({'error': 'Missing backup name'}), 400
@@ -1467,14 +1481,15 @@ def restore_backup_api():
     return jsonify({'success': False, 'error': message}), 400
 
 
+@server_api.route('/api/server/backups/delete', methods=['POST'])
 @server_api.route('/api/server/backup/delete', methods=['POST'])
 @login_required
 def delete_backup_api():
-    server_id = request.args.get('server_id', type=int)
+    data = get_json_body()
+    server_id = get_server_id_from_request()
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
     
-    data = request.get_json()
     backup_name = data.get('name')
     if not backup_name:
         return jsonify({'error': 'Missing backup name'}), 400
