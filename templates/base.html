@@ -60,7 +60,15 @@
 
   <!-- Načtení JavaScriptů -->
   <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/easter_egg.js') }}"></script>
   {% block extra_js %}{% endblock %}
+  <button id="jukebox-easter-egg" class="jukebox-button" aria-label="Přehrát easter egg">
+    <img src="{{ url_for('static', filename='img/jukebox.png') }}" alt="">
+  </button>
+
+  <audio id="jukebox-audio" preload="auto">
+    <source src="{{ url_for('static', filename='audio/aria_math.mp3') }}" type="audio/mpeg">
+  </audio>
 </body>
 
 </html>
