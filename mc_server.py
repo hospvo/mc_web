@@ -1883,6 +1883,7 @@ def install_plugin_from_url():
             }), 400
         
 @server_api.route("/api/plugins/get-download-info", methods=["POST"])
+@login_required
 def get_plugin_download_info():
     data = request.get_json()
     url = data.get("url")
