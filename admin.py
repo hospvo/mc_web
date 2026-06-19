@@ -145,7 +145,7 @@ def create_server():
             'server_id': server.id
         })
     except Exception as e:
-        current_app.logger.exception('Vytvo?en? serveru selhalo')
+        current_app.logger.exception('Vytvoření serveru selhalo')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @admin_bp.route('/server/<int:server_id>/action', methods=['POST'])
