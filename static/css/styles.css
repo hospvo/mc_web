@@ -32,6 +32,28 @@ header {
     text-align: center;
 }
 
+header h1 {
+    margin: 0;
+}
+
+.site-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: white;
+    text-decoration: none;
+    line-height: 1;
+}
+
+.site-logo {
+    width: 54px;
+    height: 54px;
+    display: block;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
 nav {
     margin-top: 10px;
 }
@@ -406,6 +428,16 @@ form button[type="submit"]:hover {
 }
 
 @media (max-width: 768px) {
+    .site-brand {
+        gap: 0.55rem;
+        font-size: 1.45rem;
+    }
+
+    .site-logo {
+        width: 42px;
+        height: 42px;
+    }
+
     .pricing {
         grid-template-columns: 1fr;
     }
