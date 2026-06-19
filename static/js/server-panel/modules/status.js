@@ -8,6 +8,9 @@ class StatusManager {
         this.currentStatus = null;
         this.lastPlayerList = [];
         this.updateInterval = null;
+        this.actionInProgress = false;
+        this.activeActionButton = null;
+        this.activeActionButtonHtml = null;
     }
 
     /**
@@ -29,9 +32,68 @@ class StatusManager {
      * Nastaví event listenery pro tlačítka
      */
     setupEventListeners() {
-        document.getElementById('start-btn')?.addEventListener('click', () => this.startServer());
-        document.getElementById('stop-btn')?.addEventListener('click', () => this.stopServer());
-        document.getElementById('restart-btn')?.addEventListener('click', () => this.restartServer());
+        document.getElementById('start-btn')?.addEventListener('click', (event) => this.startServer(event.currentTarget));
+        document.getElementById('stop-btn')?.addEventListener('click', (event) => this.stopServer(event.currentTarget));
+        document.getElementById('restart-btn')?.addEventListener('click', (event) => this.restartServer(event.currentTarget));
+    }
+
+    getActionButtons() {
+        return [
+            document.getElementById('start-btn'),
+            document.getElementById('stop-btn'),
+            document.getElementById('restart-btn')
+        ].filter(Boolean);
+    }
+
+    setActionButtonsDisabled(disabled) {
+        this.getActionButtons().forEach((button) => {
+            button.disabled = disabled;
+        });
+    }
+
+    async withServerAction(button, loadingText, action) {
+        if (this.actionInProgress) {
+            return null;
+        }
+
+        this.actionInProgress = true;
+        const originalHtml = button?.innerHTML;
+        this.activeActionButton = button || null;
+        this.activeActionButtonHtml = originalHtml || null;
+        this.setActionButtonsDisabled(true);
+
+        if (button) {
+            button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${loadingText}`;
+        }
+
+        try {
+            const result = await action();
+            return result;
+        } catch (error) {
+            this.resetActionButtons();
+            throw error;
+        }
+    }
+
+    resetActionButtons() {
+        if (this.activeActionButton && this.activeActionButtonHtml) {
+            this.activeActionButton.innerHTML = this.activeActionButtonHtml;
+        }
+
+        this.actionInProgress = false;
+        this.activeActionButton = null;
+        this.activeActionButtonHtml = null;
+        this.setActionButtonsDisabled(false);
+    }
+
+    unlockActionButtons(delay = 0) {
+        setTimeout(async () => {
+            try {
+                await this.updateStatus();
+            } finally {
+                this.resetActionButtons();
+            }
+        }, delay);
     }
 
     /**
@@ -154,10 +216,11 @@ class StatusManager {
     /**
      * Spustí server
      */
-    async startServer() {
-        try {
-            const result = await api.startServer(this.serverId);
+    async startServer(button) {
+        const result = await this.withServerAction(button, 'Spouštím...', () => api.startServer(this.serverId));
+        if (!result) return;
 
+        try {
             if (result.success) {
                 eventBus.emit(EVENTS.SERVER_STARTED, result);
                 eventBus.emit(EVENTS.NOTIFICATION_SHOW, {
@@ -165,12 +228,12 @@ class StatusManager {
                     message: 'Server se spouští...'
                 });
 
-                // Počkej a aktualizuj stav
-                setTimeout(() => this.updateStatus(), 3000);
+                this.unlockActionButtons(3000);
             } else {
                 throw new Error('Chyba při spouštění serveru');
             }
         } catch (error) {
+            this.resetActionButtons();
             console.error('Chyba při spouštění serveru:', error);
             eventBus.emit(EVENTS.NOTIFICATION_SHOW, {
                 type: 'error',
@@ -182,14 +245,15 @@ class StatusManager {
     /**
      * Vypne server
      */
-    async stopServer() {
+    async stopServer(button) {
         if (!confirm('Opravdu chcete vypnout server? Všichni hráči budou odpojeni.')) {
             return;
         }
 
-        try {
-            const result = await api.stopServer(this.serverId);
+        const result = await this.withServerAction(button, 'Vypínám...', () => api.stopServer(this.serverId));
+        if (!result) return;
 
+        try {
             if (result.success) {
                 eventBus.emit(EVENTS.SERVER_STOPPED, result);
                 eventBus.emit(EVENTS.NOTIFICATION_SHOW, {
@@ -197,12 +261,12 @@ class StatusManager {
                     message: 'Server se vypíná...'
                 });
 
-                // Počkej a aktualizuj stav
-                setTimeout(() => this.updateStatus(), 5000);
+                this.unlockActionButtons(5000);
             } else {
                 throw new Error(result.error || 'Chyba při vypínání serveru');
             }
         } catch (error) {
+            this.resetActionButtons();
             console.error('Chyba při vypínání serveru:', error);
             eventBus.emit(EVENTS.NOTIFICATION_SHOW, {
                 type: 'error',
@@ -214,14 +278,15 @@ class StatusManager {
     /**
      * Restartuje server
      */
-    async restartServer() {
+    async restartServer(button) {
         if (!confirm('Opravdu chcete restartovat server? Všichni hráči budou odpojeni.')) {
             return;
         }
 
-        try {
-            const result = await api.restartServer(this.serverId);
+        const result = await this.withServerAction(button, 'Restartuji...', () => api.restartServer(this.serverId));
+        if (!result) return;
 
+        try {
             if (result.success) {
                 eventBus.emit(EVENTS.SERVER_RESTARTED, result);
                 eventBus.emit(EVENTS.NOTIFICATION_SHOW, {
@@ -229,12 +294,12 @@ class StatusManager {
                     message: 'Server se restartuje...'
                 });
 
-                // Počkej a aktualizuj stav
-                setTimeout(() => this.updateStatus(), 8000);
+                this.unlockActionButtons(8000);
             } else {
                 throw new Error(result.error || 'Chyba při restartu serveru');
             }
         } catch (error) {
+            this.resetActionButtons();
             console.error('Chyba při restartu serveru:', error);
             eventBus.emit(EVENTS.NOTIFICATION_SHOW, {
                 type: 'error',
