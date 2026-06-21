@@ -1414,16 +1414,23 @@ def view_old_log():
 @server_api.route('/api/server/command', methods=['POST'])
 @login_required
 def send_command_api():
-    server_id = request.args.get('server_id', type=int)
+    data = get_json_body()
+    server_id = get_server_id_from_request()
     if not server_id:
         return jsonify({'error': 'Missing server_id'}), 400
+
+    server = Server.query.get_or_404(server_id)
+    if not user_can_manage_server(server):
+        abort(403)
     
-    data = request.get_json()
     command = data.get('command')
     if not command:
         return jsonify({'error': 'Missing command'}), 400
     
     success = send_command_to_server(server_id, command)
+    if not success:
+        return jsonify({'success': False, 'error': 'Server is not running or command could not be sent'}), 400
+
     return jsonify({'success': success})
 
 

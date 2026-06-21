@@ -43,7 +43,17 @@ class APIService {
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const errorText = await response.text();
+                let errorMessage = response.statusText;
+
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } catch {
+                    errorMessage = errorText || errorMessage;
+                }
+
+                throw new Error(`HTTP ${response.status}: ${errorMessage}`);
             }
             
             return await response.json();
