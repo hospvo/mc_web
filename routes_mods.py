@@ -693,67 +693,73 @@ def get_mod_download_info():
 @mods_api.route("/api/mods/client-pack/download")
 @login_required
 def download_client_pack():
-    """Vytvoří ZIP se všemi módy, které hráč musí mít na klientu."""
     server_id = request.args.get("server_id", type=int)
     if not server_id:
         return jsonify({"error": "Missing server_id"}), 400
 
     server = Server.query.get_or_404(server_id)
-    # jen vlastník nebo admin
     if server.owner_id != current_user.id and current_user not in server.admins:
         abort(403)
 
-    # === Získání modů s kontrolou client_side ===
-    mods = []
+    # ZÍSKÁNÍ MODŮ - opravená verze
+    client_mods = []
+    used_filenames = set()  # Sledování použitých názvů souborů
+    
     for mod in server.mods:
-        try:
-            client_side = (getattr(mod, 'client_side', None) or '').lower().strip() or 'unknown'
-            loader = (mod.loader or '').lower().strip()
-
-            # fallback logika, pokud client_side není známo
-            if client_side == 'unknown':
-                if loader in ['fabric', 'quilt']:
-                    client_side = 'required'
-                else:
-                    client_side = 'optional'
-
-            mods.append({
-                "id": mod.id,
-                "name": mod.name,
-                "file_path": mod.file_path,
-                "client_side": client_side
-            })
-        except Exception as e:
-            print(f"Chyba při zpracování modu {getattr(mod, 'name', '?')}: {e}")
+        if not hasattr(mod, 'client_side') or mod.client_side in [None, 'unknown']:
             continue
-
-    # Filtrujeme jen klientské mody
-    client_mods = [m for m in mods if m["client_side"] in ["required", "recommended"]]
+            
+        if mod.client_side in ["required", "recommended"] and mod.client_side != "unsupported":
+            if os.path.exists(mod.file_path):
+                filename = os.path.basename(mod.file_path)
+                
+                # Kontrola duplicit
+                if filename in used_filenames:
+                    print(f"Varování: Duplicitní soubor {filename} - přeskočen")
+                    continue
+                    
+                used_filenames.add(filename)
+                client_mods.append({
+                    "file_path": mod.file_path,
+                    "filename": filename
+                })
 
     if not client_mods:
-        return jsonify({"error": "Na tomto serveru nejsou žádné módy, které by vyžadoval klient."}), 404
+        return jsonify({"error": "Žádné módy vyžadované klientem nebyly nalezeny"}), 404
 
-    # vytvoření dočasného ZIPu
+    # Vytvoření ZIPu
     zip_dir = tempfile.mkdtemp()
     zip_path = os.path.join(zip_dir, f"client_modpack_{server.id}.zip")
 
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for mod in client_mods:
-                if os.path.exists(mod["file_path"]):
-                    zf.write(mod["file_path"], os.path.basename(mod["file_path"]))
+                zf.write(mod["file_path"], mod["filename"])
         
-        # Přidat callback pro smazání temp souboru po odeslání
+        # LEPŠÍ ŘEŠENÍ PRO MAZÁNÍ - počkáme na dokončení odesílání
         @after_this_request
         def remove_file(response):
             try:
-                os.remove(zip_path)
-                os.rmdir(zip_dir)
+                # Počkáme chvíli, než se pokusíme smazat soubor
+                import time
+                time.sleep(2)  # 2 sekundy čekání
+                
+                if os.path.exists(zip_path):
+                    os.remove(zip_path)
+                if os.path.exists(zip_dir):
+                    os.rmdir(zip_dir)
             except Exception as error:
                 print(f"Chyba při mazání temp souboru: {error}")
+                # Není fatální - temp soubory se časem vyčistí automaticky
             return response
 
-        return send_file(zip_path, as_attachment=True, download_name=f"{server.name}_client_mods.zip")
+        return send_file(
+            zip_path, 
+            as_attachment=True, 
+            download_name=f"{server.name}_client_mods.zip",
+            # Důležité pro Windows - neukončovat spojení okamžitě
+            conditional=True
+        )
     
     except Exception as e:
         # Úklid při chybě
